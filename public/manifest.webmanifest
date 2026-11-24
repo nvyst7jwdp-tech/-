@@ -1,0 +1,15 @@
+{
+  "name": "ぐるポ 営業ポータル",
+  "short_name": "ぐるポ営業",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F7F4ED",
+  "theme_color": "#D94E2B",
+  "icons": [
+    {
+      "src": "/gurupo-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
