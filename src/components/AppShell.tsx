@@ -9,7 +9,7 @@ const ROLE_LABELS = {
 } as const;
 
 const NAV_ITEMS: { id: AppTab; label: string; icon: React.ComponentType<{ className?: string; strokeWidth?: number }> }[] = [
-  { id: "today", label: "今日", icon: Home },
+  { id: "today", label: "ホーム", icon: Home },
   { id: "stores", label: "店舗", icon: Store },
   { id: "visit", label: "訪問", icon: ClipboardCheck },
   { id: "training", label: "研修", icon: BookOpen },

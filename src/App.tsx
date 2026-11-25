@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, isFirebaseConfigured } from "./lib/firebase";
 import { fetchUserProfile, logoutUser } from "./services/authService";
@@ -11,11 +11,13 @@ import {
 } from "./components/StatusScreens";
 import { AppShell } from "./components/AppShell";
 import { AdminPanel } from "./components/AdminPanel";
+import { TodayScreen } from "./components/TodayScreen";
 
 export default function App() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [activeTab, setActiveTab] = useState<AppTab>("today");
+  const todayAnimatedRef = useRef(false);
 
   const reloadProfile = async (uid: string) => {
     const p = await fetchUserProfile(uid);
@@ -41,6 +43,12 @@ export default function App() {
     });
     return () => unsub();
   }, []);
+
+  useEffect(() => {
+    if (profile?.approved && profile?.active && activeTab === "today" && !todayAnimatedRef.current) {
+      todayAnimatedRef.current = true;
+    }
+  }, [profile, activeTab]);
 
   if (!isFirebaseConfigured) return <SetupRequiredScreen />;
 
@@ -70,6 +78,8 @@ export default function App() {
     );
   }
 
+  const shouldAnimateToday = !todayAnimatedRef.current;
+
   return (
     <AppShell
       profile={profile}
@@ -77,20 +87,25 @@ export default function App() {
       onTabChange={setActiveTab}
       onLogout={() => void logoutUser()}
     >
-      {activeTab === "menu" && profile.role === "admin" ? (
+      {activeTab === "today" ? (
+        <TodayScreen
+          profile={profile}
+          onNavigateTab={setActiveTab}
+          animateCards={shouldAnimateToday}
+        />
+      ) : activeTab === "menu" && profile.role === "admin" ? (
         <AdminPanel currentAdmin={profile} />
       ) : (
         <section className="rounded-2xl border-2 border-[#D5CEC0] bg-white p-5">
-          <p className="text-xs font-extrabold text-[#B93818]">土台構築完了（次のフェーズで機能追加）</p>
+          <p className="text-xs font-extrabold text-[#B93818]">準備中（次のフェーズで追加）</p>
           <h2 className="mt-1 text-lg font-extrabold">
-            {activeTab === "today" && "今日（ダッシュボード）"}
             {activeTab === "stores" && "店舗一覧・マップ"}
             {activeTab === "visit" && "訪問記録"}
             {activeTab === "training" && "研修ライブラリ"}
             {activeTab === "menu" && "メニュー"}
           </h2>
           <p className="mt-2 text-xs font-medium leading-relaxed text-[#575249]">
-            ログイン認証・役割権限・データベース接続の土台が正常に動作しています。ここから各画面の機能を順番に実装できます。
+            この画面はこれから順番に追加していきます。
           </p>
         </section>
       )}
