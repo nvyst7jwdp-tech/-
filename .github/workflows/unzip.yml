@@ -1,1 +1,25 @@
-
+name: Organize Home Patch
+on:
+  push:
+    paths:
+      - '.github/workflows/unzip.yml'
+permissions:
+  contents: write
+jobs:
+  organize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p src/lib src/components
+          [ -f kpiRates.ts ] && mv -f kpiRates.ts src/lib/kpiRates.ts
+          [ -f AppShell.tsx ] && mv -f AppShell.tsx src/components/AppShell.tsx
+          [ -f TodayScreen.tsx ] && mv -f TodayScreen.tsx src/components/TodayScreen.tsx
+          [ -f index.css ] && mv -f index.css src/index.css
+          [ -f App.tsx ] && mv -f App.tsx src/App.tsx
+          rm -f gurupo_firebase_today_patch.zip .github/workflows/unzip.yml
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add -A
+          git commit -m "Move home patch files into src/" || true
+          git push
