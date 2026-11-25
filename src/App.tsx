@@ -12,6 +12,7 @@ import {
 import { AppShell } from "./components/AppShell";
 import { AdminPanel } from "./components/AdminPanel";
 import { TodayScreen } from "./components/TodayScreen";
+import { StoresScreen } from "./components/StoresScreen";
 
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -93,6 +94,8 @@ export default function App() {
           onNavigateTab={setActiveTab}
           animateCards={shouldAnimateToday}
         />
+      ) : activeTab === "stores" ? (
+        <StoresScreen profile={profile} onNavigateTab={setActiveTab} />
       ) : activeTab === "menu" && profile.role === "admin" ? (
         <AdminPanel currentAdmin={profile} />
       ) : (
