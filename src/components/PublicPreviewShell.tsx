@@ -152,7 +152,7 @@ export function PublicPreviewShell() {
       : copy.sort((a, b) => (a.scheduledTime || "99:99").localeCompare(b.scheduledTime || "99:99"));
   }, [sortMode]);
 
-  const selfKpi = SAMPLE_TEAM_MEMBERS_KPI.find((m) => m.id === "u-satou");
+  const selfKpi = SAMPLE_TEAM_MEMBERS_KPI.find((m) => m.id === "u-satou") ?? SAMPLE_TEAM_MEMBERS_KPI[0];
   const selfRank = computeRankByContracts(SAMPLE_TEAM_MEMBERS_KPI, "u-satou");
   const teamTotals = useMemo(
     () =>

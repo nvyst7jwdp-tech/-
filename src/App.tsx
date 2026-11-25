@@ -110,7 +110,6 @@ export default function App() {
         <section className="rounded-2xl border-2 border-[#D5CEC0] bg-white p-5">
           <p className="text-xs font-extrabold text-[#B93818]">準備中（次のフェーズで追加）</p>
           <h2 className="mt-1 text-lg font-extrabold">
-            {activeTab === "stores" && "店舗一覧・マップ"}
             {activeTab === "visit" && "訪問記録"}
             {activeTab === "training" && "研修ライブラリ"}
             {activeTab === "menu" && "メニュー"}
