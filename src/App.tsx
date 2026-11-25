@@ -13,8 +13,16 @@ import { AppShell } from "./components/AppShell";
 import { AdminPanel } from "./components/AdminPanel";
 import { TodayScreen } from "./components/TodayScreen";
 import { StoresScreen } from "./components/StoresScreen";
+import { PublicPreviewShell } from "./components/PublicPreviewShell";
 
 export default function App() {
+  const isPublicPreview =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("preview") === "1";
+  if (isPublicPreview) {
+    return <PublicPreviewShell />;
+  }
+
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [activeTab, setActiveTab] = useState<AppTab>("today");
