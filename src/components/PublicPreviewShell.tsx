@@ -69,8 +69,8 @@ const SAMPLE_MAP_STORES = [
 ];
 
 const SAMPLE_PLACE_CANDIDATES = [
-  { id: "cand-1", name: "サンプル和食 葵", address: "架空市中央1-5-2", phone: "000-0202-0001", memo: "周辺検索候補（未登録）", x: 52, y: 42 },
-  { id: "cand-2", name: "サンプル餃子 龍", address: "架空市中央2-1-8", phone: "000-0202-0002", memo: "周辺検索候補（未登録）", x: 20, y: 62 },
+  { id: "cand-1", name: "サンプル和食 葵", status: "未接触", address: "架空市中央1-5-2", phone: "000-0202-0001", memo: "周辺検索候補（未登録）", x: 52, y: 42 },
+  { id: "cand-2", name: "サンプル餃子 龍", status: "未接触", address: "架空市中央2-1-8", phone: "000-0202-0002", memo: "周辺検索候補（未登録）", x: 20, y: 62 },
 ];
 
 const PIN_STYLES: Record<string, { bg: string; badge: string; dot: string }> = {
@@ -122,7 +122,7 @@ export function PublicPreviewShell() {
   const [mapStores, setMapStores] = useState(SAMPLE_MAP_STORES);
   const [placeSearchText, setPlaceSearchText] = useState("");
   const [showPlaceCandidates, setShowPlaceCandidates] = useState(true);
-  const [selectedPinId, setSelectedPinId] = useState("map-1");
+  const [selectedPinId, setSelectedPinId] = useState<string | null>("map-1");
   const [selectedRouteIds, setSelectedRouteIds] = useState(["map-1", "map-2", "map-3"]);
   const [optimizedPreviewRoute, setOptimizedPreviewRoute] = useState<{ ordered: typeof SAMPLE_MAP_STORES; distanceKm: string; durationMin: number } | null>(null);
 

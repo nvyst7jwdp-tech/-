@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import React, { useEffect, useRef, useState } from "react";
 import { MapPin, Phone, Navigation, X, AlertCircle, UserPlus, Check } from "lucide-react";
 
