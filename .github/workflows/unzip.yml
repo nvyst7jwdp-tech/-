@@ -1,0 +1,23 @@
+name: Fix Build Errors
+on:
+  push:
+    paths:
+      - '.github/workflows/unzip.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          [ -f gurupo_build_fix_patch.zip ] && unzip -o gurupo_build_fix_patch.zip
+          mkdir -p src/components
+          [ -f PublicPreviewShell.tsx ] && mv -f PublicPreviewShell.tsx src/components/PublicPreviewShell.tsx
+          [ -f App.tsx ] && mv -f App.tsx src/App.tsx
+          rm -f gurupo_build_fix_patch.zip .github/workflows/unzip.yml
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add -A
+          git commit -m "Fix TS errors in App and PublicPreviewShell" || true
+          git push
