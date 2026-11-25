@@ -1,0 +1,30 @@
+name: Apply Fixed Stores And Preview
+on:
+  push:
+    paths:
+      - '.github/workflows/unzip.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          [ -f gurupo_firebase_stores_and_preview_v2.zip ] && unzip -o gurupo_firebase_stores_and_preview_v2.zip
+          mkdir -p src/components src/services src/lib
+          [ -f vite-env.d.ts ] && mv -f vite-env.d.ts src/vite-env.d.ts
+          [ -f firebase.ts ] && mv -f firebase.ts src/lib/firebase.ts
+          [ -f CustomerMap.tsx ] && mv -f CustomerMap.tsx src/components/CustomerMap.tsx
+          [ -f StoresScreen.tsx ] && mv -f StoresScreen.tsx src/components/StoresScreen.tsx
+          [ -f PublicPreviewShell.tsx ] && mv -f PublicPreviewShell.tsx src/components/PublicPreviewShell.tsx
+          [ -f placesService.ts ] && mv -f placesService.ts src/services/placesService.ts
+          [ -f routesService.ts ] && mv -f routesService.ts src/services/routesService.ts
+          [ -f storesService.ts ] && mv -f storesService.ts src/services/storesService.ts
+          [ -f App.tsx ] && mv -f App.tsx src/App.tsx
+          rm -f gurupo_firebase_stores_and_preview_v2.zip .github/workflows/unzip.yml
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add -A
+          git commit -m "Fix TS types and apply Stores + Preview" || true
+          git push
