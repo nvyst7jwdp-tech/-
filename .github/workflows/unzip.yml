@@ -1,0 +1,27 @@
+name: Apply Stores Patch
+on:
+  push:
+    paths:
+      - '.github/workflows/unzip.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          [ -f gurupo_firebase_stores_patch.zip ] && unzip -o gurupo_firebase_stores_patch.zip
+          mkdir -p src/components src/services
+          [ -f CustomerMap.tsx ] && mv -f CustomerMap.tsx src/components/CustomerMap.tsx
+          [ -f StoresScreen.tsx ] && mv -f StoresScreen.tsx src/components/StoresScreen.tsx
+          [ -f placesService.ts ] && mv -f placesService.ts src/services/placesService.ts
+          [ -f routesService.ts ] && mv -f routesService.ts src/services/routesService.ts
+          [ -f storesService.ts ] && mv -f storesService.ts src/services/storesService.ts
+          [ -f App.tsx ] && mv -f App.tsx src/App.tsx
+          rm -f gurupo_firebase_stores_patch.zip .github/workflows/unzip.yml
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add -A
+          git commit -m "Add StoresScreen, Places, and Routes" || true
+          git push
