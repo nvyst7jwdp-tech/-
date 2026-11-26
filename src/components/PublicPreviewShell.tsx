@@ -172,7 +172,7 @@ function computeRankByContracts(rows: { id: string; contracts: number }[], targe
 const NAV_ITEMS = [
   { id: "today", label: "ホーム", icon: Home },
   { id: "stores", label: "店舗", icon: Store },
-  { id: "visit", label: "訪問", icon: ClipboardCheck },
+  { id: "visit", label: "予定", icon: Calendar },
   { id: "training", label: "研修", icon: BookOpen },
   { id: "menu", label: "メニュー", icon: Menu },
 ];
@@ -181,6 +181,9 @@ export function PublicPreviewShell() {
   const [rolePreview, setRolePreview] = useState("member");
   const [activeTab, setActiveTab] = useState("today");
   const [previewDayOffset, setPreviewDayOffset] = useState(0);
+  const [previewCalView, setPreviewCalView] = useState<"week" | "month">("week");
+  const [previewCalScope, setPreviewCalScope] = useState<"mine" | "team">("mine");
+  const [previewGcalOn, setPreviewGcalOn] = useState(true);
   const [previewChartMode, setPreviewChartMode] = useState<"weekly" | "monthly">("weekly");
   const [announcements, setAnnouncements] = useState(INITIAL_ANNOUNCEMENTS);
   const [showAnnouncementList, setShowAnnouncementList] = useState(false);
@@ -1393,16 +1396,136 @@ export function PublicPreviewShell() {
             );
           })()}
 
-          {activeTab !== "today" && activeTab !== "stores" && (
+          {activeTab === "visit" && (() => {
+            const effCalScope = isLeader ? previewCalScope : "mine";
+            const calEvents = SAMPLE_SCHEDULES.filter(
+              (ev) => effCalScope === "team" || ev.ownerRole === "member"
+            );
+            return (
+              <div className="gurupo-screen-enter space-y-4">
+                <h1 className="text-xl font-extrabold">予定</h1>
+
+                <div className="rounded-2xl border-2 border-[#D94E2B] bg-[#FFF5F2] p-3.5 text-xs">
+                  <p className="flex items-center gap-1.5 font-extrabold text-[#9A3412]">
+                    <Bell className="h-4 w-4 text-[#D94E2B]" />
+                    <span>明日の予定リマインド（1件）</span>
+                  </p>
+                  <p className="mt-1 font-bold text-[#1C1A16]">
+                    ・13:30 サンプル食堂B（担当：佐藤 健太）
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-1 rounded-2xl border-2 border-[#D5CEC0] bg-[#EFEAE0] p-1">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewCalScope("mine")}
+                    className={`min-h-[36px] rounded-xl text-xs font-extrabold ${
+                      effCalScope === "mine" ? "bg-[#1C1A16] text-white" : "text-[#474239]"
+                    }`}
+                  >
+                    自分の予定
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!isLeader}
+                    onClick={() => isLeader && setPreviewCalScope("team")}
+                    className={`flex min-h-[36px] items-center justify-center gap-1 rounded-xl text-xs font-extrabold ${
+                      !isLeader
+                        ? "cursor-not-allowed text-[#8A8377] opacity-60"
+                        : effCalScope === "team"
+                        ? "bg-[#1C1A16] text-white"
+                        : "text-[#474239]"
+                    }`}
+                  >
+                    {!isLeader && <Lock className="h-3.5 w-3.5" />}
+                    <span>チーム予定</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between rounded-2xl border-2 border-[#D5CEC0] bg-white px-3.5 py-2.5">
+                  <div>
+                    <p className="text-xs font-extrabold">Googleカレンダー連携</p>
+                    <p className="text-[10px] font-bold text-[#575249]">
+                      {previewGcalOn ? "オン（同期可能）" : "オフ"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPreviewGcalOn((v) => !v);
+                      notify(!previewGcalOn ? "Googleカレンダー連携をオンにしました" : "オフにしました");
+                    }}
+                    className={`min-h-[30px] rounded-full px-3 text-[11px] font-extrabold ${
+                      previewGcalOn ? "bg-emerald-700 text-white" : "bg-[#EFEAE0] text-[#474239]"
+                    }`}
+                  >
+                    {previewGcalOn ? "ON" : "OFF"}
+                  </button>
+                </div>
+
+                <div className="space-y-2.5 rounded-2xl border-2 border-[#D5CEC0] bg-white p-3.5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-extrabold">2026年11月</p>
+                    <div className="inline-flex rounded-xl border border-[#D5CEC0] bg-[#EFEAE0] p-0.5 text-[11px] font-extrabold">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewCalView("week")}
+                        className={`rounded-lg px-2.5 py-1 ${previewCalView === "week" ? "bg-[#1C1A16] text-white" : ""}`}
+                      >
+                        週
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewCalView("month")}
+                        className={`rounded-lg px-2.5 py-1 ${previewCalView === "month" ? "bg-[#1C1A16] text-white" : ""}`}
+                      >
+                        月
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-extrabold text-[#575249]">
+                    {["月", "火", "水", "木", "金", "土", "日"].map((w) => (
+                      <div key={w}>{w}</div>
+                    ))}
+                    {(previewCalView === "week" ? [23, 24, 25, 26, 27, 28, 29] : Array.from({ length: 28 }, (_, i) => i + 1)).map((d) => (
+                      <div
+                        key={d}
+                        className={`rounded-lg border py-2 text-xs font-extrabold ${
+                          d === 26 ? "border-[#1C1A16] bg-[#1C1A16] text-white" : "border-[#EAE3D5] bg-[#FBF9F4]"
+                        }`}
+                      >
+                        {d}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-xs font-extrabold text-[#575249]">今日の予定（店舗アポ連動）</p>
+                  {calEvents.map((ev) => (
+                    <div key={ev.id} className="rounded-2xl border-2 border-[#D5CEC0] bg-white p-3.5">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-lg bg-[#1C1A16] px-2 py-0.5 text-xs font-extrabold text-white">{ev.time}</span>
+                        <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-extrabold text-blue-950">店舗アポ連動</span>
+                      </div>
+                      <p className="mt-1.5 text-sm font-extrabold">{ev.storeName}</p>
+                      <p className="text-xs font-bold text-[#575249]">取材担当：{ev.ownerName}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {activeTab !== "today" && activeTab !== "stores" && activeTab !== "visit" && (
             <section className="gurupo-screen-enter rounded-2xl border-2 border-[#D5CEC0] bg-white p-5">
               <p className="text-xs font-extrabold text-[#B93818]">準備中（プレビュー範囲外）</p>
               <h2 className="mt-1 text-lg font-extrabold">
-                {activeTab === "visit" && "訪問記録"}
                 {activeTab === "training" && "研修ライブラリ"}
                 {activeTab === "menu" && "メニュー"}
               </h2>
               <p className="mt-2 text-xs font-medium text-[#575249]">
-                現在このプレビューでは「ホーム」と「店舗」を確認できます。
+                現在このプレビューでは「ホーム」「店舗」「予定」を確認できます。
               </p>
             </section>
           )}

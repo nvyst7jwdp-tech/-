@@ -1,5 +1,5 @@
 import React from "react";
-import { Home, Store, ClipboardCheck, BookOpen, Menu, LogOut } from "lucide-react";
+import { Home, Store, CalendarDays, BookOpen, Menu, LogOut } from "lucide-react";
 import type { AppTab, UserProfile } from "../types/gurupo";
 
 const ROLE_LABELS = {
@@ -11,7 +11,7 @@ const ROLE_LABELS = {
 const NAV_ITEMS: { id: AppTab; label: string; icon: React.ComponentType<{ className?: string; strokeWidth?: number }> }[] = [
   { id: "today", label: "ホーム", icon: Home },
   { id: "stores", label: "店舗", icon: Store },
-  { id: "visit", label: "訪問", icon: ClipboardCheck },
+  { id: "visit", label: "予定", icon: CalendarDays },
   { id: "training", label: "研修", icon: BookOpen },
   { id: "menu", label: "メニュー", icon: Menu },
 ];

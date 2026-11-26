@@ -13,6 +13,7 @@ import { AppShell } from "./components/AppShell";
 import { AdminPanel } from "./components/AdminPanel";
 import { TodayScreen } from "./components/TodayScreen";
 import { StoresScreen } from "./components/StoresScreen";
+import { VisitScreen } from "./components/VisitScreen";
 import { PublicPreviewShell } from "./components/PublicPreviewShell";
 
 export default function App() {
@@ -104,13 +105,14 @@ export default function App() {
         />
       ) : activeTab === "stores" ? (
         <StoresScreen profile={profile} onNavigateTab={setActiveTab} />
+      ) : activeTab === "visit" ? (
+        <VisitScreen profile={profile} />
       ) : activeTab === "menu" && profile.role === "admin" ? (
         <AdminPanel currentAdmin={profile} />
       ) : (
         <section className="rounded-2xl border-2 border-[#D5CEC0] bg-white p-5">
           <p className="text-xs font-extrabold text-[#B93818]">準備中（次のフェーズで追加）</p>
           <h2 className="mt-1 text-lg font-extrabold">
-            {activeTab === "visit" && "訪問記録"}
             {activeTab === "training" && "研修ライブラリ"}
             {activeTab === "menu" && "メニュー"}
           </h2>
