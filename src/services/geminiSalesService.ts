@@ -103,20 +103,19 @@ ${salesRepName || "ぐるポ営業担当"}
   "emailBody": "本文"
 }`;
 
-  const modelsToTry = ["gemini-3.8-flash", "gemini-2.5-flash"];
-  let json: {
+  type GeminiResp = {
     error?: { message?: string };
     candidates?: {
       content?: { parts?: { text?: string }[] };
     }[];
-  } = {};
-  let succeeded = false;
+  };
 
-  for (const model of modelsToTry) {
+  async function callGenerateContent(modelName: string): Promise<{ ok: boolean; data: GeminiResp }> {
+    const cleanModel = modelName.replace(/^models\//, "");
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
-        key
-      )}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+        cleanModel
+      )}:generateContent?key=${encodeURIComponent(key)}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -129,15 +128,59 @@ ${salesRepName || "ぐるポ営業担当"}
         }),
       }
     );
-    json = (await res.json()) as typeof json;
-    if (res.ok) {
-      succeeded = true;
-      break;
+    const data = (await res.json()) as GeminiResp;
+    return { ok: res.ok, data };
+  }
+
+  let json: GeminiResp = {};
+  let succeeded = false;
+  const errors: string[] = [];
+
+  // 1. まず推奨モデル gemini-3.8-flash を試す
+  const firstTry = await callGenerateContent("gemini-3.8-flash");
+  if (firstTry.ok) {
+    json = firstTry.data;
+    succeeded = true;
+  } else {
+    errors.push(`gemini-3.8-flash: ${firstTry.data.error?.message || "失敗"}`);
+
+    // 2. 利用可能なモデル一覧を自動取得して、generateContent対応のflashモデルで再試行
+    try {
+      const listRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`
+      );
+      if (listRes.ok) {
+        const listJson = (await listRes.json()) as {
+          models?: { name?: string; supportedGenerationMethods?: string[] }[];
+        };
+        const candidates = (listJson.models ?? [])
+          .filter(
+            (m) =>
+              m.name &&
+              m.supportedGenerationMethods?.includes("generateContent") &&
+              /flash/i.test(m.name) &&
+              !/gemini-3\.8-flash$/i.test(m.name)
+          )
+          .map((m) => m.name as string);
+
+        for (const candidateModel of candidates.slice(0, 3)) {
+          const retry = await callGenerateContent(candidateModel);
+          if (retry.ok) {
+            json = retry.data;
+            succeeded = true;
+            break;
+          } else {
+            errors.push(`${candidateModel}: ${retry.data.error?.message || "失敗"}`);
+          }
+        }
+      }
+    } catch {
+      // モデル一覧取得失敗時はそのまま最初のエラーを返す
     }
   }
 
   if (!succeeded) {
-    throw new Error(json.error?.message || "Gemini API での分析に失敗しました。");
+    throw new Error(errors[0] || "Gemini API での分析に失敗しました。");
   }
 
   const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
