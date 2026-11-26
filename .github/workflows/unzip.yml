@@ -1,0 +1,23 @@
+name: Place Stores V5 Files
+on: push
+permissions:
+  contents: write
+jobs:
+  move:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p src/components src/services
+          for f in CustomerMap.tsx StoresScreen.tsx PublicPreviewShell.tsx; do
+            [ -f "$f" ] && mv -f "$f" src/components/
+          done
+          for f in placesService.ts storesService.ts; do
+            [ -f "$f" ] && mv -f "$f" src/services/
+          done
+          rm -f .github/workflows/unzip.yml
+          git config user.name "actions-user"
+          git config user.email "actions@github.com"
+          git add -A
+          git commit -m "Apply stores v5 updates" || true
+          git push
