@@ -1,0 +1,17 @@
+name: Fix CustomerMap Order
+on: push
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          python3 -c 'from pathlib import Path; p = Path("src/components/CustomerMap.tsx"); s = p.read_text(); block = "  const selectedCustomer =\n    selectedKey?.kind === \"customer\"\n      ? customers.find((c) => c.id === selectedKey.id) ?? null\n      : null;\n  const selectedCandidate =\n    selectedKey?.kind === \"candidate\"\n      ? candidates.find((c) => c.placeId === selectedKey.id) ?? null\n      : null;"; s = s.replace(block + "\n\n", "", 1); anchor = "  const [candWarning, setCandWarning] = useState<AppointmentConflictWarning | null>(null);"; s = s.replace(anchor, anchor + "\n\n" + block, 1); p.write_text(s)'
+          rm -f .github/workflows/unzip.yml
+          git config user.name "actions-user"
+          git config user.email "actions@github.com"
+          git add -A
+          git commit -m "Fix selectedCandidate declaration order" || true
+          git push
