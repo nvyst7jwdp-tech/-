@@ -1,0 +1,24 @@
+name: Place Schedule V1 Files
+on: push
+permissions:
+  contents: write
+jobs:
+  move:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p src/components src/services
+          for f in VisitScreen.tsx AppShell.tsx PublicPreviewShell.tsx; do
+            [ -f "$f" ] && mv -f "$f" src/components/
+          done
+          [ -f "App.tsx" ] && mv -f App.tsx src/
+          for f in googleCalendarService.ts visitCalendarService.ts; do
+            [ -f "$f" ] && mv -f "$f" src/services/
+          done
+          rm -f .github/workflows/unzip.yml
+          git config user.name "actions-user"
+          git config user.email "actions@github.com"
+          git add -A
+          git commit -m "Replace visit tab with schedule calendar" || true
+          git push
