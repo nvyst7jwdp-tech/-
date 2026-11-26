@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 import React, { useEffect, useRef, useState } from "react";
 import { MapPin, Phone, Navigation, X, AlertCircle, UserPlus, Check } from "lucide-react";
+import { SalesInsightPanel } from "./SalesInsightPanel";
 
 export type CustomerStatus =
   | "未接触"
@@ -20,6 +21,8 @@ export interface CustomerPin {
   phone?: string;
   memo?: string;
   placeId?: string;
+  isMine?: boolean;
+  ownerName?: string;
 }
 
 export interface PlaceCandidatePin {
@@ -128,6 +131,10 @@ export type GoogleMapsApi = {
           req: { query: string },
           cb: (results: unknown[] | null, status: string) => void
         ) => void;
+        getDetails: (
+          req: { placeId: string; fields: string[] },
+          cb: (result: unknown | null, status: string) => void
+        ) => void;
       };
     };
   };
@@ -172,14 +179,20 @@ export function loadGoogleMapsScript(apiKey: string): Promise<GoogleMapsApi> {
   return googleMapsLoader;
 }
 
-function createPinIcon(google: GoogleMapsApi, color: string, selected: boolean) {
+function createPinIcon(
+  google: GoogleMapsApi,
+  color: string,
+  selected: boolean,
+  isMine = true
+) {
   return {
     path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z",
     fillColor: color,
-    fillOpacity: 1,
+    fillOpacity: isMine ? 1 : 0.45,
     strokeColor: selected ? "#1C1A16" : "#FFFFFF",
-    strokeWeight: selected ? 2.5 : 1.5,
-    scale: selected ? 1.8 : 1.45,
+    strokeOpacity: isMine || selected ? 1 : 0.75,
+    strokeWeight: selected ? (isMine ? 2.5 : 2.2) : isMine ? 1.75 : 1.2,
+    scale: selected ? (isMine ? 1.85 : 1.45) : isMine ? 1.5 : 1.1,
     anchor: new google.maps.Point(12, 22),
   };
 }
@@ -204,6 +217,8 @@ export function CustomerMap({
   routePath = [],
   routeOrderMap,
   apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "",
+  geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY ?? "",
+  salesRepName = "",
   defaultCenter = { lat: 34.6937, lng: 135.5023 },
 }: {
   customers: CustomerPin[];
@@ -214,6 +229,8 @@ export function CustomerMap({
   routePath?: { lat: number; lng: number }[];
   routeOrderMap?: Map<string, number>;
   apiKey?: string;
+  geminiApiKey?: string;
+  salesRepName?: string;
   defaultCenter?: { lat: number; lng: number };
 }) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -226,6 +243,7 @@ export function CustomerMap({
         kind: "customer" | "candidate";
         marker: InstanceType<GoogleMapsApi["maps"]["Marker"]>;
         status?: CustomerStatus;
+        isMine?: boolean;
       }
     >
   >(new Map());
@@ -298,6 +316,7 @@ export function CustomerMap({
     customers.forEach((customer) => {
       const style = STATUS_STYLE[customer.status] ?? STATUS_STYLE["未接触"];
       const isSelected = selectedKey?.kind === "customer" && selectedKey.id === customer.id;
+      const isMine = customer.isMine !== false;
       const orderNum = routeOrderMap?.get(customer.id);
       const marker = new google.maps.Marker({
         position: { lat: customer.lat, lng: customer.lng },
@@ -306,7 +325,7 @@ export function CustomerMap({
         label: orderNum
           ? { text: String(orderNum), color: "#FFFFFF", fontWeight: "bold", fontSize: "11px" }
           : undefined,
-        icon: createPinIcon(google, style.pinColor, isSelected),
+        icon: createPinIcon(google, style.pinColor, isSelected, isMine),
       });
       marker.addListener("click", () => {
         setSelectedKey({ kind: "customer", id: customer.id });
@@ -315,6 +334,7 @@ export function CustomerMap({
         kind: "customer",
         marker,
         status: customer.status,
+        isMine,
       });
       bounds.extend({ lat: customer.lat, lng: customer.lng });
     });
@@ -354,7 +374,9 @@ export function CustomerMap({
         selectedKey !== null && `${selectedKey.kind}:${selectedKey.id}` === key;
       if (entry.kind === "customer") {
         const style = STATUS_STYLE[entry.status ?? "未接触"];
-        entry.marker.setIcon(createPinIcon(google, style.pinColor, isSelected));
+        entry.marker.setIcon(
+          createPinIcon(google, style.pinColor, isSelected, entry.isMine !== false)
+        );
       } else {
         entry.marker.setIcon(createCandidateIcon(google, isSelected));
       }
@@ -419,13 +441,20 @@ export function CustomerMap({
         <article className="gurupo-toast-pop rounded-2xl border-2 border-[#1C1A16] bg-white p-4 shadow-sm">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <span
-                className={`inline-block rounded-md border px-2 py-0.5 text-xs font-extrabold ${
-                  STATUS_STYLE[selectedCustomer.status].badgeClass
-                }`}
-              >
-                {selectedCustomer.status}
-              </span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span
+                  className={`inline-block rounded-md border px-2 py-0.5 text-xs font-extrabold ${
+                    STATUS_STYLE[selectedCustomer.status].badgeClass
+                  }`}
+                >
+                  {selectedCustomer.status}
+                </span>
+                {selectedCustomer.ownerName && (
+                  <span className="text-xs font-bold text-[#575249]">
+                    担当：{selectedCustomer.ownerName}
+                  </span>
+                )}
+              </div>
               <h3 className="mt-1.5 text-base font-extrabold text-[#1C1A16]">
                 {selectedCustomer.name}
               </h3>
@@ -480,6 +509,20 @@ export function CustomerMap({
         </article>
       )}
 
+      {selectedCustomer && (
+        <SalesInsightPanel
+          target={{
+            id: selectedCustomer.id,
+            name: selectedCustomer.name,
+            address: selectedCustomer.address ?? "",
+            placeId: selectedCustomer.placeId,
+          }}
+          mapsApiKey={apiKey}
+          geminiApiKey={geminiApiKey}
+          salesRepName={salesRepName}
+        />
+      )}
+
       {selectedCandidate && (
         <article className="gurupo-toast-pop rounded-2xl border-2 border-[#D94E2B] bg-[#FFF8F6] p-4 shadow-sm">
           <div className="flex items-start justify-between gap-2">
@@ -532,6 +575,20 @@ export function CustomerMap({
             </button>
           )}
         </article>
+      )}
+
+      {selectedCandidate && (
+        <SalesInsightPanel
+          target={{
+            id: selectedCandidate.placeId,
+            name: selectedCandidate.name,
+            address: selectedCandidate.address,
+            placeId: selectedCandidate.placeId,
+          }}
+          mapsApiKey={apiKey}
+          geminiApiKey={geminiApiKey}
+          salesRepName={salesRepName}
+        />
       )}
 
       {!selectedCustomer && !selectedCandidate && (

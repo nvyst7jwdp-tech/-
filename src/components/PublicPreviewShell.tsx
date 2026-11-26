@@ -20,6 +20,12 @@ import {
   Check,
   Route,
   Navigation,
+  Lock,
+  Sparkles,
+  Globe,
+  Instagram,
+  Copy,
+  Loader2,
 } from "lucide-react";
 
 const INITIAL_ANNOUNCEMENTS = [
@@ -62,15 +68,15 @@ const SAMPLE_TEAM_MEMBERS_KPI = [
 ];
 
 const SAMPLE_MAP_STORES = [
-  { id: "map-1", name: "サンプル店舗A", status: "商談中", address: "架空市中央1-2-3", phone: "000-0101-0001", memo: "次回対応日を4日超過", x: 28, y: 34 },
-  { id: "map-2", name: "サンプル食堂B", status: "未接触", address: "架空市緑ヶ丘2-8-10", phone: "000-0101-0002", memo: "新規アプローチ候補", x: 68, y: 28 },
-  { id: "map-3", name: "サンプル手打ちそばE", status: "契約済み", address: "架空市川端4-1-9", phone: "000-0101-0004", memo: "年間プラン契約完了", x: 74, y: 66 },
-  { id: "map-4", name: "サンプルカフェF", status: "商談中", address: "架空市南町3-4-5", phone: "000-0101-0005", memo: "掲載プラン比較資料を送付済み", x: 38, y: 72 },
+  { id: "map-1", name: "サンプル店舗A", status: "商談中", address: "架空市中央1-2-3", phone: "000-0101-0001", memo: "次回対応日を4日超過", x: 28, y: 34, ownerUid: "u-satou", ownerName: "佐藤 健太" },
+  { id: "map-2", name: "サンプル食堂B", status: "未接触", address: "架空市緑ヶ丘2-8-10", phone: "000-0101-0002", memo: "新規アプローチ候補", x: 68, y: 28, ownerUid: "u-satou", ownerName: "佐藤 健太" },
+  { id: "map-3", name: "サンプル手打ちそばE", status: "契約済み", address: "架空市川端4-1-9", phone: "000-0101-0004", memo: "年間プラン契約完了", x: 74, y: 66, ownerUid: "u-tanaka", ownerName: "田中 翔" },
+  { id: "map-4", name: "サンプルカフェF", status: "商談中", address: "架空市南町3-4-5", phone: "000-0101-0005", memo: "掲載プラン比較資料を送付済み", x: 38, y: 72, ownerUid: "u-yamada", ownerName: "山田 陽子" },
 ];
 
 const SAMPLE_PLACE_CANDIDATES = [
-  { id: "cand-1", name: "サンプル和食 葵", status: "未接触", address: "架空市中央1-5-2", phone: "000-0202-0001", memo: "周辺検索候補（未登録）", x: 52, y: 42 },
-  { id: "cand-2", name: "サンプル餃子 龍", status: "未接触", address: "架空市中央2-1-8", phone: "000-0202-0002", memo: "周辺検索候補（未登録）", x: 20, y: 62 },
+  { id: "cand-1", name: "サンプル和食 葵", status: "未接触", address: "架空市中央1-5-2", phone: "000-0202-0001", memo: "周辺検索候補（未登録）", x: 52, y: 42, ownerUid: "u-satou", ownerName: "佐藤 健太" },
+  { id: "cand-2", name: "サンプル餃子 龍", status: "未接触", address: "架空市中央2-1-8", phone: "000-0202-0002", memo: "周辺検索候補（未登録）", x: 20, y: 62, ownerUid: "u-satou", ownerName: "佐藤 健太" },
 ];
 
 const PIN_STYLES: Record<string, { bg: string; badge: string; dot: string }> = {
@@ -78,6 +84,59 @@ const PIN_STYLES: Record<string, { bg: string; badge: string; dot: string }> = {
   商談中: { bg: "#2563EB", badge: "border-blue-700 bg-blue-100 text-blue-950", dot: "bg-blue-600" },
   未接触: { bg: "#6B7280", badge: "border-stone-500 bg-stone-200 text-stone-900", dot: "bg-stone-500" },
 };
+
+type PreviewInsight = {
+  website?: string;
+  rating: string;
+  attributes: string[];
+  strengths: string[];
+  emailSubject: string;
+  emailBody: string;
+};
+
+const SAMPLE_SALES_INSIGHTS: Record<string, PreviewInsight> = {
+  "map-1": {
+    website: "https://example.com/sample-store-a",
+    rating: "★4.3（86件）",
+    attributes: ["予約可", "ディナー営業", "アルコール提供"],
+    strengths: [
+      "駅近かつ予約対応で接待・会食需要を取り込みやすい立地と運用体制",
+      "口コミで料理の盛り付けと接客の丁寧さが高評価（★4.3）",
+      "ディナー中心の単価帯で、リピーター獲得と相性が良い",
+    ],
+    emailSubject: "【ぐるポ】サンプル店舗A様の魅力発信と新規集客のご提案",
+    emailBody: "サンプル店舗A ご担当者様\n\n突然のご連絡失礼いたします。グルメSNS『ぐるポ』担当の佐藤と申します。\n\n貴店の公式情報や口コミを拝見し、駅からのアクセスの良さと丁寧な接客・予約対応による会食利用のしやすさが大変魅力的だと感じご連絡いたしました。\n\nぜひ一度、写真・動画を活用した新規来店づくりの事例をご紹介できれば幸いです。",
+  },
+  "cand-1": {
+    website: "https://example.com/sample-washoku-aoi",
+    rating: "★4.5（142件）",
+    attributes: ["個室傾向", "ランチ営業", "ディナー営業"],
+    strengths: [
+      "ランチ・ディナー両営業により昼夜それぞれの顧客層にアプローチ可能",
+      "和食の季節感・盛り付けに関する写真評価が高く、SNS映えに強い",
+      "高評価口コミ（★4.5）が多く、紹介経由の来店ポテンシャルが高い",
+    ],
+    emailSubject: "【ぐるポ】サンプル和食 葵様の季節料理の魅力を広げるご提案",
+    emailBody: "サンプル和食 葵 ご担当者様\n\nはじめまして。グルメSNS『ぐるポ』担当の佐藤と申します。\n\n昼夜それぞれの時間帯で高い評価を集められている点や、季節感のある和食のビジュアル訴求が素晴らしいと感じ、ご連絡いたしました。\n\n15分ほどオンラインまたはお伺いにて活用事例をお話しできれば幸いです。",
+  },
+};
+
+function getPreviewInsight(store: { id: string; name: string }) {
+  const hit = SAMPLE_SALES_INSIGHTS[store.id];
+  if (hit) return hit;
+  return {
+    website: "https://example.com/" + encodeURIComponent(store.id),
+    rating: "★4.1（54件）",
+    attributes: ["イートイン可", "ディナー営業"],
+    strengths: [
+      `${store.name}ならではの看板メニューと安定した口コミ評価`,
+      "近隣エリアでの認知拡大により新規・再来の両面で伸びしろが大きい",
+      "写真と来店動機を紐づけたSNS訴求と相性が良い業態",
+    ],
+    emailSubject: `【ぐるポ】${store.name}様の新規集客・ファンづくりに関するご提案`,
+    emailBody: `${store.name} ご担当者様\n\n突然のご連絡失礼いたします。グルメSNS『ぐるポ』担当の佐藤と申します。\n\n地域の皆さまからの高い評価とお店独自のこだわりを拝見し、ぜひ『ぐるポ』での魅力発信をご提案したくご連絡いたしました。\n\nご都合の良いお時間に5〜10分ほどご説明の機会をいただけますと幸いです。`,
+  };
+}
 
 function formatRateWithCount(numerator: number, denominator: number) {
   if (denominator <= 0) return "—";
@@ -118,7 +177,12 @@ export function PublicPreviewShell() {
 
   // 店舗タブ状態
   const [storeViewMode, setStoreViewMode] = useState("map");
+  const [storeScope, setStoreScope] = useState<"mine" | "team">("mine");
+  const [storeKeyword, setStoreKeyword] = useState("");
   const [storeFilter, setStoreFilter] = useState("すべて");
+  const [selectedListStoreId, setSelectedListStoreId] = useState<string | null>(null);
+  const [insightLoading, setInsightLoading] = useState(false);
+  const [insightCopied, setInsightCopied] = useState(false);
   const [mapStores, setMapStores] = useState(SAMPLE_MAP_STORES);
   const [placeSearchText, setPlaceSearchText] = useState("");
   const [showPlaceCandidates, setShowPlaceCandidates] = useState(true);
@@ -138,6 +202,14 @@ export function PublicPreviewShell() {
     const t = setTimeout(() => setToast(""), 2200);
     return () => clearTimeout(t);
   }, [toast]);
+
+  useEffect(() => {
+    if (!selectedPinId && !selectedListStoreId) return;
+    setInsightLoading(true);
+    setInsightCopied(false);
+    const t = setTimeout(() => setInsightLoading(false), 380);
+    return () => clearTimeout(t);
+  }, [selectedPinId, selectedListStoreId]);
 
   useEffect(() => {
     if (activeTab === "today" && !todayAnimatedRef.current) {
@@ -483,9 +555,17 @@ export function PublicPreviewShell() {
           )}
 
           {activeTab === "stores" && (() => {
-            const filteredPins = mapStores.filter(
-              (st) => storeFilter === "すべて" || st.status === storeFilter
-            );
+            const effectiveStoreScope = isLeader ? storeScope : "mine";
+            const qStore = storeKeyword.trim().toLowerCase();
+            const filteredPins = mapStores.filter((st) => {
+              const matchScope = effectiveStoreScope === "team" || st.ownerUid === "u-satou";
+              const matchStatus = storeFilter === "すべて" || st.status === storeFilter;
+              const matchQuery =
+                !qStore ||
+                st.name.toLowerCase().includes(qStore) ||
+                st.address.toLowerCase().includes(qStore);
+              return matchScope && matchStatus && matchQuery;
+            });
             const activeCandidates = showPlaceCandidates
               ? SAMPLE_PLACE_CANDIDATES.filter((c) => !mapStores.some((m) => m.id === c.id))
               : [];
@@ -527,6 +607,39 @@ export function PublicPreviewShell() {
                   </div>
                 </div>
 
+                <div
+                  role="group"
+                  aria-label="店舗の表示範囲"
+                  className="grid grid-cols-2 gap-1 rounded-2xl border-2 border-[#D5CEC0] bg-[#EFEAE0] p-1"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setStoreScope("mine")}
+                    className={`min-h-[38px] rounded-xl text-xs font-extrabold transition-transform duration-100 active:scale-[0.97] ${
+                      effectiveStoreScope === "mine" ? "bg-[#1C1A16] text-white" : "text-[#474239]"
+                    }`}
+                  >
+                    自分の店舗
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!isLeader}
+                    onClick={() => {
+                      if (isLeader) setStoreScope("team");
+                    }}
+                    className={`flex min-h-[38px] items-center justify-center gap-1 rounded-xl text-xs font-extrabold transition-transform duration-100 ${
+                      !isLeader
+                        ? "cursor-not-allowed text-[#8A8377] opacity-65"
+                        : effectiveStoreScope === "team"
+                        ? "bg-[#1C1A16] text-white active:scale-[0.97]"
+                        : "text-[#474239] active:scale-[0.97]"
+                    }`}
+                  >
+                    {!isLeader && <Lock className="h-3.5 w-3.5 shrink-0" />}
+                    <span>チーム全体</span>
+                  </button>
+                </div>
+
                 <div className="space-y-2 rounded-2xl border-2 border-[#D5CEC0] bg-white p-3.5">
                   <p className="text-xs font-extrabold">周辺の飲食店を探す（Places API）</p>
                   <div className="flex gap-2">
@@ -560,6 +673,14 @@ export function PublicPreviewShell() {
                     <span>現在地周辺の飲食店を検索</span>
                   </button>
                 </div>
+
+                <input
+                  type="text"
+                  value={storeKeyword}
+                  onChange={(e) => setStoreKeyword(e.target.value)}
+                  placeholder="登録済み店舗を絞り込み"
+                  className="min-h-[42px] w-full rounded-xl border-2 border-[#D5CEC0] bg-white px-3 text-xs font-medium focus:border-[#D94E2B] focus:outline-none"
+                />
 
                 <div className="flex gap-1.5 overflow-x-auto pb-1">
                   {["すべて", "契約済み", "商談中", "未接触"].map((st) => (
@@ -610,6 +731,7 @@ export function PublicPreviewShell() {
                       )}
                       {filteredPins.map((pin) => {
                         const isSel = selectedPin?.id === pin.id;
+                        const isMinePin = pin.ownerUid === "u-satou";
                         const orderIdx = optimizedPreviewRoute?.ordered.findIndex((o) => o.id === pin.id);
                         const orderNum = orderIdx !== undefined && orderIdx >= 0 ? orderIdx + 1 : null;
                         return (
@@ -618,13 +740,15 @@ export function PublicPreviewShell() {
                             type="button"
                             onClick={() => setSelectedPinId(pin.id)}
                             style={{ left: `${pin.x}%`, top: `${pin.y}%` }}
-                            className={`absolute -translate-x-1/2 -translate-y-1/2 transition-transform duration-150 ${isSel ? "z-20 scale-125" : "z-10"}`}
+                            className={`absolute -translate-x-1/2 -translate-y-1/2 transition-transform duration-150 ${
+                              isSel ? "z-20 scale-125" : isMinePin ? "z-15" : "z-10"
+                            }`}
                           >
                             <span
                               style={{ backgroundColor: PIN_STYLES[pin.status].bg }}
-                              className={`flex h-9 w-9 items-center justify-center rounded-full border-2 border-white text-xs font-extrabold text-white shadow-md ${
-                                isSel ? "ring-4 ring-[#1C1A16]/30" : ""
-                              }`}
+                              className={`flex items-center justify-center rounded-full border-2 border-white font-extrabold text-white shadow-md ${
+                                isMinePin ? "h-10 w-10 text-xs opacity-100" : "h-7 w-7 text-[10px] opacity-55"
+                              } ${isSel ? "ring-4 ring-[#1C1A16]/30 opacity-100" : ""}`}
                             >
                               {orderNum ?? pin.name.replace("サンプル", "").slice(0, 1)}
                             </span>
@@ -662,6 +786,11 @@ export function PublicPreviewShell() {
                             >
                               {isSelectedCandidate ? "飲食店候補（未登録）" : selectedPin.status}
                             </span>
+                            {!isSelectedCandidate && "ownerName" in selectedPin && selectedPin.ownerName && (
+                              <span className="ml-1.5 text-xs font-bold text-[#575249]">
+                                担当：{selectedPin.ownerName}
+                              </span>
+                            )}
                             <h3 className="mt-1.5 text-base font-extrabold">{selectedPin.name}</h3>
                           </div>
                           <button
@@ -704,6 +833,122 @@ export function PublicPreviewShell() {
                         )}
                       </article>
                     )}
+
+                    {selectedPin && (() => {
+                      const previewInsight = getPreviewInsight(selectedPin);
+                      const igSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(
+                        `${selectedPin.name} Instagram`
+                      )}`;
+                      return (
+                        <section
+                          aria-label="営業情報パネル"
+                          className="gurupo-toast-pop space-y-3 rounded-2xl border-2 border-[#D5CEC0] bg-[#FBF9F4] p-4 shadow-sm"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5">
+                              <Sparkles className="h-4 w-4 text-[#D94E2B]" />
+                              <h4 className="text-sm font-extrabold">営業情報パネル（プレビュー）</h4>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setInsightLoading(true);
+                                setTimeout(() => setInsightLoading(false), 380);
+                              }}
+                              className="inline-flex min-h-[30px] items-center gap-1 rounded-lg border border-[#D5CEC0] bg-white px-2 text-[11px] font-extrabold text-[#474239]"
+                            >
+                              <RefreshCw className="h-3 w-3" />
+                              <span>再分析</span>
+                            </button>
+                          </div>
+
+                          <div className="flex flex-wrap gap-2">
+                            {previewInsight.website && (
+                              <a
+                                href={previewInsight.website}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex min-h-[36px] items-center gap-1.5 rounded-xl border-2 border-[#1C1A16] bg-white px-3 text-xs font-extrabold"
+                              >
+                                <Globe className="h-3.5 w-3.5 text-[#D94E2B]" />
+                                <span>Webサイトを開く</span>
+                              </a>
+                            )}
+                            <a
+                              href={igSearchUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-xl border-2 border-[#D5CEC0] bg-white px-3 text-xs font-extrabold"
+                            >
+                              <Instagram className="h-3.5 w-3.5 text-[#D94E2B]" />
+                              <span>Instagram候補を検索</span>
+                            </a>
+                          </div>
+
+                          <div className="flex flex-wrap gap-1.5 text-[11px] font-bold text-[#474239]">
+                            <span className="rounded-md border border-[#EAE3D5] bg-white px-2 py-0.5">
+                              {previewInsight.rating}
+                            </span>
+                            {previewInsight.attributes.map((attr) => (
+                              <span key={attr} className="rounded-md border border-[#EAE3D5] bg-white px-2 py-0.5">
+                                {attr}
+                              </span>
+                            ))}
+                          </div>
+
+                          {insightLoading ? (
+                            <div className="flex items-center justify-center gap-2 rounded-xl border border-[#EAE3D5] bg-white py-5 text-xs font-bold text-[#575249]">
+                              <Loader2 className="h-4 w-4 animate-spin text-[#D94E2B]" />
+                              <span>公開情報から強みと営業メールを分析中...</span>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="rounded-xl border border-[#EAE3D5] bg-white p-3">
+                                <p className="text-xs font-extrabold">抽出された店舗の強み</p>
+                                <ul className="mt-2 space-y-1.5">
+                                  {previewInsight.strengths.map((s, idx) => (
+                                    <li key={idx} className="flex items-start gap-2 text-xs text-[#3D3932]">
+                                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#D94E2B]" />
+                                      <span>{s}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+
+                              <div className="space-y-2 rounded-xl border border-[#EAE3D5] bg-white p-3">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-xs font-extrabold">メール営業テンプレート</p>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const full = `件名: ${previewInsight.emailSubject}\n\n${previewInsight.emailBody}`;
+                                      if (navigator.clipboard?.writeText) {
+                                        navigator.clipboard.writeText(full).catch(() => {});
+                                      }
+                                      setInsightCopied(true);
+                                      notify("営業メールをコピーしました");
+                                      setTimeout(() => setInsightCopied(false), 1800);
+                                    }}
+                                    className={`inline-flex min-h-[32px] items-center gap-1 rounded-lg px-2.5 text-xs font-extrabold text-white ${
+                                      insightCopied ? "bg-emerald-700" : "bg-[#1C1A16]"
+                                    }`}
+                                  >
+                                    {insightCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                                    <span>{insightCopied ? "コピー済み" : "コピー"}</span>
+                                  </button>
+                                </div>
+                                <div className="rounded-lg bg-[#F7F4ED] px-2.5 py-1.5 text-xs font-extrabold">
+                                  件名：{previewInsight.emailSubject}
+                                </div>
+                                <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed text-[#3D3932]">
+                                  {previewInsight.emailBody}
+                                </pre>
+                              </div>
+                            </>
+                          )}
+                        </section>
+                      );
+                    })()}
 
                     <div className="space-y-2.5 rounded-2xl border-2 border-[#D5CEC0] bg-white p-4">
                       <div className="flex items-center justify-between">
@@ -837,11 +1082,37 @@ export function PublicPreviewShell() {
                   <div className="space-y-2.5">
                     {filteredPins.map((st) => (
                       <div key={st.id} className="rounded-2xl border-2 border-[#D5CEC0] bg-white p-4">
-                        <span className={`inline-block rounded-md border px-2 py-0.5 text-xs font-extrabold ${PIN_STYLES[st.status].badge}`}>
-                          {st.status}
-                        </span>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={`inline-block rounded-md border px-2 py-0.5 text-xs font-extrabold ${PIN_STYLES[st.status].badge}`}>
+                            {st.status}
+                          </span>
+                          {st.ownerName && (
+                            <span className="text-xs font-bold text-[#575249]">担当：{st.ownerName}</span>
+                          )}
+                        </div>
                         <h3 className="mt-1.5 text-base font-extrabold">{st.name}</h3>
                         <p className="mt-1 text-xs text-[#575249]">{st.address}</p>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedListStoreId((prev) => (prev === st.id ? null : st.id))}
+                          className="mt-2.5 flex min-h-[38px] w-full items-center justify-center gap-1.5 rounded-xl border-2 border-[#D5CEC0] bg-[#FBF9F4] text-xs font-extrabold"
+                        >
+                          <Sparkles className="h-3.5 w-3.5 text-[#D94E2B]" />
+                          <span>{selectedListStoreId === st.id ? "営業情報パネルを閉じる" : "営業情報パネルを見る"}</span>
+                        </button>
+                        {selectedListStoreId === st.id && (
+                          <div className="mt-3 rounded-xl border border-[#EAE3D5] bg-[#FBF9F4] p-3 text-xs space-y-2">
+                            <p className="font-extrabold text-[#1C1A16]">抽出された強み（サンプル）</p>
+                            <ul className="space-y-1">
+                              {getPreviewInsight(st).strengths.map((s, idx) => (
+                                <li key={idx} className="flex items-start gap-1.5 text-[#3D3932]">
+                                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#D94E2B]" />
+                                  <span>{s}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
