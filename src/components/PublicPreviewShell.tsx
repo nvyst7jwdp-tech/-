@@ -78,8 +78,8 @@ const SAMPLE_MAP_STORES = [
 ];
 
 const SAMPLE_PLACE_CANDIDATES = [
-  { id: "cand-1", name: "サンプル和食 葵", status: "キック", address: "架空市中央1-5-2", phone: "000-0202-0001", memo: "周辺検索候補（未登録）", x: 52, y: 42, ownerUid: "u-satou", ownerName: "佐藤 健太" },
-  { id: "cand-2", name: "サンプル餃子 龍", status: "キック", address: "架空市中央2-1-8", phone: "000-0202-0002", memo: "周辺検索候補（未登録）", x: 20, y: 62, ownerUid: "u-satou", ownerName: "佐藤 健太" },
+  { id: "cand-1", name: "サンプル和食 葵", status: "キック", genre: "和食", address: "架空市中央1-5-2", phone: "000-0202-0001", memo: "周辺検索候補（未登録）", x: 52, y: 42, ownerUid: "u-satou", ownerName: "佐藤 健太" },
+  { id: "cand-2", name: "サンプル餃子 龍", status: "キック", genre: "和食", address: "架空市中央2-1-8", phone: "000-0202-0002", memo: "周辺検索候補（未登録）", x: 20, y: 62, ownerUid: "u-satou", ownerName: "佐藤 健太" },
 ];
 
 const PREVIEW_STORE_STATUSES = ["キック", "アポ獲得", "掲載のみ", "契約済み"] as const;
