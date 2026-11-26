@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import React, { useEffect, useRef, useState } from "react";
-import { MapPin, Phone, Navigation, X, AlertCircle, UserPlus, Check, Trash2 } from "lucide-react";
+import { MapPin, Phone, Navigation, X, AlertCircle, UserPlus, Check, Trash2, Calendar } from "lucide-react";
 import { SalesInsightPanel } from "./SalesInsightPanel";
 
 export const STORE_STATUS_LIST = [
@@ -24,6 +24,8 @@ export interface CustomerPin {
   placeId?: string;
   isMine?: boolean;
   ownerName?: string;
+  appointmentDate?: string;
+  appointmentTime?: string;
 }
 
 export interface PlaceCandidatePin {
@@ -82,22 +84,11 @@ export type GoogleMapsApi = {
       position: { lat: number; lng: number };
       map: unknown;
       title?: string;
-      label?: { text: string; color: string; fontWeight?: string; fontSize?: string };
       icon?: unknown;
     }) => {
       setMap: (map: unknown) => void;
       setIcon: (icon: unknown) => void;
       addListener: (event: string, handler: () => void) => void;
-    };
-    Polyline: new (opts: {
-      path: { lat: number; lng: number }[];
-      geodesic?: boolean;
-      strokeColor?: string;
-      strokeOpacity?: number;
-      strokeWeight?: number;
-      map: unknown;
-    }) => {
-      setMap: (map: unknown) => void;
     };
     LatLngBounds: new () => {
       extend: (pos: { lat: number; lng: number }) => void;
@@ -116,6 +107,7 @@ export type GoogleMapsApi = {
             location: { lat: number; lng: number };
             radius: number;
             type?: string;
+            keyword?: string;
           },
           cb: (results: unknown[] | null, status: string) => void
         ) => void;
@@ -206,11 +198,10 @@ export function CustomerMap({
   registeredPlaceIds,
   onRegisterCandidate,
   registeringPlaceId,
-  routePath = [],
-  routeOrderMap,
   focusTarget,
   onRequestDelete,
   canDeleteCustomer,
+  showLegend = true,
   apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "",
   geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY ?? "",
   salesRepName = "",
@@ -219,13 +210,16 @@ export function CustomerMap({
   customers: CustomerPin[];
   candidates?: PlaceCandidatePin[];
   registeredPlaceIds?: Set<string>;
-  onRegisterCandidate?: (candidate: PlaceCandidatePin, status: CustomerStatus) => void;
+  onRegisterCandidate?: (
+    candidate: PlaceCandidatePin,
+    status: CustomerStatus,
+    appointment?: { date: string; time: string }
+  ) => void;
   registeringPlaceId?: string | null;
-  routePath?: { lat: number; lng: number }[];
-  routeOrderMap?: Map<string, number>;
   focusTarget?: { id: string; lat: number; lng: number; nonce: number } | null;
   onRequestDelete?: (customer: CustomerPin) => void;
   canDeleteCustomer?: (customer: CustomerPin) => boolean;
+  showLegend?: boolean;
   apiKey?: string;
   geminiApiKey?: string;
   salesRepName?: string;
@@ -233,7 +227,6 @@ export function CustomerMap({
 }) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<InstanceType<GoogleMapsApi["maps"]["Map"]> | null>(null);
-  const polylineRef = useRef<InstanceType<GoogleMapsApi["maps"]["Polyline"]> | null>(null);
   const markersRef = useRef<
     Map<
       string,
@@ -253,6 +246,9 @@ export function CustomerMap({
   const [mapError, setMapError] = useState("");
   const [mapReady, setMapReady] = useState(false);
   const [candidateStatus, setCandidateStatus] = useState<CustomerStatus>("キック");
+  const [candApptDate, setCandApptDate] = useState("");
+  const [candApptTime, setCandApptTime] = useState("");
+  const [candError, setCandError] = useState("");
 
   const selectedCustomer =
     selectedKey?.kind === "customer"
@@ -316,14 +312,10 @@ export function CustomerMap({
       const style = STATUS_STYLE[customer.status] ?? STATUS_STYLE["キック"];
       const isSelected = selectedKey?.kind === "customer" && selectedKey.id === customer.id;
       const isMine = customer.isMine !== false;
-      const orderNum = routeOrderMap?.get(customer.id);
       const marker = new google.maps.Marker({
         position: { lat: customer.lat, lng: customer.lng },
         map,
         title: `${customer.name}（${customer.status}）`,
-        label: orderNum
-          ? { text: String(orderNum), color: "#FFFFFF", fontWeight: "bold", fontSize: "11px" }
-          : undefined,
         icon: createPinIcon(google, style.pinColor, isSelected, isMine),
       });
       marker.addListener("click", () => {
@@ -348,6 +340,7 @@ export function CustomerMap({
         icon: createCandidateIcon(google, isSelected),
       });
       marker.addListener("click", () => {
+        setCandError("");
         setSelectedKey({ kind: "candidate", id: cand.placeId });
       });
       markersRef.current.set(`candidate:${cand.placeId}`, {
@@ -363,7 +356,7 @@ export function CustomerMap({
     } else {
       map.fitBounds(bounds);
     }
-  }, [customers, candidates, registeredPlaceIds, routeOrderMap, mapReady]);
+  }, [customers, candidates, registeredPlaceIds, mapReady]);
 
   useEffect(() => {
     const google = window.google;
@@ -383,31 +376,6 @@ export function CustomerMap({
   }, [selectedKey, mapReady]);
 
   useEffect(() => {
-    const google = window.google;
-    const map = mapInstanceRef.current;
-    if (!mapReady || !google?.maps || !map) return;
-
-    if (polylineRef.current) {
-      polylineRef.current.setMap(null);
-      polylineRef.current = null;
-    }
-
-    if (routePath.length >= 2) {
-      polylineRef.current = new google.maps.Polyline({
-        path: routePath,
-        geodesic: true,
-        strokeColor: "#D94E2B",
-        strokeOpacity: 0.9,
-        strokeWeight: 5,
-        map,
-      });
-      const bounds = new google.maps.LatLngBounds();
-      routePath.forEach((pt) => bounds.extend(pt));
-      map.fitBounds(bounds);
-    }
-  }, [routePath, mapReady]);
-
-  useEffect(() => {
     if (!focusTarget) return;
     setSelectedKey({ kind: "customer", id: focusTarget.id });
     const map = mapInstanceRef.current;
@@ -419,21 +387,25 @@ export function CustomerMap({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2 rounded-2xl border-2 border-[#D5CEC0] bg-white px-3.5 py-2.5 text-xs font-extrabold">
-        {STORE_STATUS_LIST.map((status) => (
-          <span key={status} className="inline-flex items-center gap-1.5 text-[#1C1A16]">
-            <span className={`h-3 w-3 rounded-full ${STATUS_STYLE[status].dotClass}`} />
-            <span>{status}</span>
+      {showLegend && (
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border-2 border-[#D5CEC0] bg-white px-3.5 py-2.5 text-xs font-extrabold">
+          {STORE_STATUS_LIST.map((status) => (
+            <span key={status} className="inline-flex items-center gap-1.5 text-[#1C1A16]">
+              <span className={`h-3 w-3 rounded-full ${STATUS_STYLE[status].dotClass}`} />
+              <span>{status}</span>
+            </span>
+          ))}
+          {candidates.length > 0 && (
+            <span className="inline-flex items-center gap-1.5 text-[#9A3412]">
+              <span className="h-3 w-3 rounded-full bg-orange-600" />
+              <span>店舗候補</span>
+            </span>
+          )}
+          <span className="ml-auto text-[#575249]">
+            {customers.length > 0 ? `${customers.length}件` : `${candidates.length}件`}
           </span>
-        ))}
-        {candidates.length > 0 && (
-          <span className="inline-flex items-center gap-1.5 text-[#9A3412]">
-            <span className="h-3 w-3 rounded-full bg-orange-600" />
-            <span>検索候補</span>
-          </span>
-        )}
-        <span className="ml-auto text-[#575249]">{customers.length}件</span>
-      </div>
+        </div>
+      )}
 
       <div className="relative h-80 w-full overflow-hidden rounded-2xl border-2 border-[#D5CEC0] bg-[#EFEAE0]">
         {mapError ? (
@@ -442,7 +414,7 @@ export function CustomerMap({
             <p className="text-xs font-extrabold text-[#1C1A16]">{mapError}</p>
           </div>
         ) : (
-          <div ref={mapContainerRef} className="h-full w-full" aria-label="顧客マップ" />
+          <div ref={mapContainerRef} className="h-full w-full" aria-label="マップ" />
         )}
       </div>
 
@@ -473,7 +445,7 @@ export function CustomerMap({
                 <button
                   type="button"
                   onClick={() => onRequestDelete(selectedCustomer)}
-                  aria-label="店舗を削除"
+                  aria-label="顧客を削除"
                   className="flex h-9 w-9 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-700 active:scale-[0.97]"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -489,6 +461,16 @@ export function CustomerMap({
               </button>
             </div>
           </div>
+
+          {selectedCustomer.status === "アポ獲得" &&
+            (selectedCustomer.appointmentDate || selectedCustomer.appointmentTime) && (
+              <p className="mt-2 flex items-center gap-1.5 text-xs font-extrabold text-blue-900">
+                <Calendar className="h-3.5 w-3.5 shrink-0" />
+                <span>
+                  アポ日時：{selectedCustomer.appointmentDate} {selectedCustomer.appointmentTime}
+                </span>
+              </p>
+            )}
 
           {selectedCustomer.address && (
             <p className="mt-2 flex items-center gap-1.5 text-xs font-bold text-[#474239]">
@@ -532,6 +514,7 @@ export function CustomerMap({
 
       {selectedCustomer && (
         <SalesInsightPanel
+          key={`cust-${selectedCustomer.id}`}
           target={{
             id: selectedCustomer.id,
             name: selectedCustomer.name,
@@ -549,7 +532,7 @@ export function CustomerMap({
           <div className="flex items-start justify-between gap-2">
             <div>
               <span className="inline-block rounded-md bg-orange-600 px-2 py-0.5 text-xs font-extrabold text-white">
-                飲食店候補（未登録）
+                店舗（未登録）
               </span>
               <h3 className="mt-1.5 text-base font-extrabold text-[#1C1A16]">
                 {selectedCandidate.name}
@@ -571,27 +554,64 @@ export function CustomerMap({
           {onRegisterCandidate && (
             <div className="mt-3 space-y-2">
               {!registeredPlaceIds?.has(selectedCandidate.placeId) && (
-                <div>
-                  <p className="mb-1 text-[11px] font-extrabold text-[#575249]">
-                    登録ステータスを選択
-                  </p>
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {STORE_STATUS_LIST.map((st) => (
-                      <button
-                        key={st}
-                        type="button"
-                        onClick={() => setCandidateStatus(st)}
-                        className={`min-h-[34px] rounded-lg border-2 px-1 text-[11px] font-extrabold transition-transform duration-100 active:scale-[0.97] ${
-                          candidateStatus === st
-                            ? "border-[#1C1A16] bg-[#1C1A16] text-white"
-                            : "border-[#D5CEC0] bg-white text-[#3D3932]"
-                        }`}
-                      >
-                        {st}
-                      </button>
-                    ))}
+                <>
+                  <div>
+                    <p className="mb-1 text-[11px] font-extrabold text-[#575249]">
+                      登録ステータスを選択
+                    </p>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {STORE_STATUS_LIST.map((st) => (
+                        <button
+                          key={st}
+                          type="button"
+                          onClick={() => {
+                            setCandidateStatus(st);
+                            setCandError("");
+                          }}
+                          className={`min-h-[34px] rounded-lg border-2 px-1 text-[11px] font-extrabold transition-transform duration-100 active:scale-[0.97] ${
+                            candidateStatus === st
+                              ? "border-[#1C1A16] bg-[#1C1A16] text-white"
+                              : "border-[#D5CEC0] bg-white text-[#3D3932]"
+                          }`}
+                        >
+                          {st}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                  {candidateStatus === "アポ獲得" && (
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-extrabold text-blue-900">
+                        アポ日時（必須）
+                      </p>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <input
+                          type="date"
+                          aria-label="アポ日付"
+                          value={candApptDate}
+                          onChange={(e) => {
+                            setCandApptDate(e.target.value);
+                            setCandError("");
+                          }}
+                          className="min-h-[38px] rounded-lg border-2 border-[#1C1A16] bg-white px-2 text-xs font-bold"
+                        />
+                        <input
+                          type="time"
+                          aria-label="アポ時間"
+                          value={candApptTime}
+                          onChange={(e) => {
+                            setCandApptTime(e.target.value);
+                            setCandError("");
+                          }}
+                          className="min-h-[38px] rounded-lg border-2 border-[#1C1A16] bg-white px-2 text-xs font-bold"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+              {candError && (
+                <p className="text-xs font-extrabold text-red-900">{candError}</p>
               )}
               <button
                 type="button"
@@ -599,13 +619,25 @@ export function CustomerMap({
                   registeringPlaceId === selectedCandidate.placeId ||
                   registeredPlaceIds?.has(selectedCandidate.placeId)
                 }
-                onClick={() => onRegisterCandidate(selectedCandidate, candidateStatus)}
+                onClick={() => {
+                  if (candidateStatus === "アポ獲得" && (!candApptDate || !candApptTime)) {
+                    setCandError("「アポ獲得」の場合は日付と時間の両方を入力してください。");
+                    return;
+                  }
+                  onRegisterCandidate(
+                    selectedCandidate,
+                    candidateStatus,
+                    candidateStatus === "アポ獲得"
+                      ? { date: candApptDate, time: candApptTime }
+                      : undefined
+                  );
+                }}
                 className="flex min-h-[46px] w-full items-center justify-center gap-1.5 rounded-xl bg-[#D94E2B] px-3 text-xs font-extrabold text-white transition-transform duration-100 active:scale-[0.97] disabled:opacity-60"
               >
                 {registeredPlaceIds?.has(selectedCandidate.placeId) ? (
                   <>
                     <Check className="h-4 w-4" />
-                    <span>登録済み</span>
+                    <span>登録済み（顧客へ移動）</span>
                   </>
                 ) : (
                   <>
@@ -613,7 +645,7 @@ export function CustomerMap({
                     <span>
                       {registeringPlaceId === selectedCandidate.placeId
                         ? "登録中..."
-                        : `「${candidateStatus}」で登録する`}
+                        : `「${candidateStatus}」で顧客登録`}
                     </span>
                   </>
                 )}
@@ -625,6 +657,7 @@ export function CustomerMap({
 
       {selectedCandidate && (
         <SalesInsightPanel
+          key={`cand-${selectedCandidate.placeId}`}
           target={{
             id: selectedCandidate.placeId,
             name: selectedCandidate.name,
@@ -639,7 +672,7 @@ export function CustomerMap({
 
       {!selectedCustomer && !selectedCandidate && (
         <p className="rounded-2xl border-2 border-[#D5CEC0] bg-white px-4 py-3 text-center text-xs font-bold text-[#575249]">
-          地図上のピンをタップすると、詳細が表示されます。
+          地図上のピンをタップすると、詳細と営業情報が表示されます。
         </p>
       )}
     </div>

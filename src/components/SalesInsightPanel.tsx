@@ -32,6 +32,13 @@ const insightCache = new Map<
   { details: PlaceSalesDetails; insight: SalesInsightResult | null; error?: string }
 >();
 
+function normalizeExternalWebsiteUrl(url?: string): string | null {
+  if (!url) return null;
+  const trimmed = url.trim();
+  if (!/^https?:\/\//i.test(trimmed)) return null;
+  return trimmed;
+}
+
 async function copyText(text: string) {
   try {
     await navigator.clipboard.writeText(text);
@@ -64,11 +71,17 @@ export function SalesInsightPanel({
   const [copiedMode, setCopiedMode] = useState<"dm" | "email" | "teleapo" | null>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
 
-  const cacheKey = `v3:${target.placeId || target.id}:${target.name}`;
-  const instagramUrl = buildInstagramSearchUrl(target.name, target.address);
+  const cacheKey = `v4:${target.placeId || target.id}:${target.name}`;
+  const instagramSearchUrl = buildInstagramSearchUrl(target.name, target.address);
+  const officialWebsiteUrl = normalizeExternalWebsiteUrl(details?.website);
 
   useEffect(() => {
     let cancelled = false;
+    // 店舗切替時に前の店舗のWebサイトURLや分析結果が残らないよう即座にリセット
+    setDetails(null);
+    setInsight(null);
+    setError("");
+
     const cached = reloadNonce === 0 ? insightCache.get(cacheKey) : undefined;
     if (cached) {
       setDetails(cached.details);
@@ -80,8 +93,6 @@ export function SalesInsightPanel({
 
     async function run() {
       setLoading(true);
-      setError("");
-      setInsight(null);
       try {
         const fetchedDetails = await fetchPlaceSalesDetails({
           name: target.name,
@@ -169,11 +180,12 @@ export function SalesInsightPanel({
         </button>
       </div>
 
-      {/* 外部公開情報リンク */}
+      {/* 外部公開情報リンク（WebサイトとInstagramを厳密に分離） */}
       <div className="flex flex-wrap gap-2">
-        {details?.website && (
+        {officialWebsiteUrl && (
           <a
-            href={details.website}
+            key={`web-${cacheKey}`}
+            href={officialWebsiteUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border-2 border-[#1C1A16] bg-white px-3 text-xs font-extrabold text-[#1C1A16] active:scale-[0.97]"
@@ -183,7 +195,8 @@ export function SalesInsightPanel({
           </a>
         )}
         <a
-          href={instagramUrl}
+          key={`ig-${cacheKey}`}
+          href={instagramSearchUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border-2 border-[#D5CEC0] bg-white px-3 text-xs font-extrabold text-[#1C1A16] active:scale-[0.97]"

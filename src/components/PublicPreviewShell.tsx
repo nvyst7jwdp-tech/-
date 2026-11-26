@@ -18,8 +18,6 @@ import {
   LocateFixed,
   UserPlus,
   Check,
-  Route,
-  Navigation,
   Lock,
   Sparkles,
   Globe,
@@ -29,6 +27,8 @@ import {
   PhoneCall,
   Trash2,
   Mail,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 const INITIAL_ANNOUNCEMENTS = [
@@ -204,8 +204,11 @@ export function PublicPreviewShell() {
   const [placeSearchText, setPlaceSearchText] = useState("");
   const [showPlaceCandidates, setShowPlaceCandidates] = useState(true);
   const [selectedPinId, setSelectedPinId] = useState<string | null>("map-1");
-  const [selectedRouteIds, setSelectedRouteIds] = useState(["map-1", "map-2", "map-3"]);
-  const [optimizedPreviewRoute, setOptimizedPreviewRoute] = useState<{ ordered: typeof SAMPLE_MAP_STORES; distanceKm: string; durationMin: number } | null>(null);
+  const [previewSectionTab, setPreviewSectionTab] = useState<"customers" | "prospects">("customers");
+  const [expandedPreviewCandIds, setExpandedPreviewCandIds] = useState<Record<string, boolean>>({});
+  const [candApptDate, setCandApptDate] = useState("");
+  const [candApptTime, setCandApptTime] = useState("");
+  const [candApptErr, setCandApptErr] = useState("");
 
   const isLeader = rolePreview === "manager" || rolePreview === "admin";
   const unreadCount = announcements.filter((a) => !a.read).length;
@@ -614,7 +617,7 @@ export function PublicPreviewShell() {
             return (
               <div className="gurupo-screen-enter space-y-4">
                 <div className="flex items-center justify-between gap-2">
-                  <h1 className="text-xl font-extrabold">店舗</h1>
+                  <h1 className="text-xl font-extrabold">顧客・店舗</h1>
                   <div className="flex rounded-xl border-2 border-[#D5CEC0] bg-[#EFEAE0] p-0.5 text-xs font-extrabold">
                     <button
                       type="button"
@@ -631,6 +634,31 @@ export function PublicPreviewShell() {
                       一覧
                     </button>
                   </div>
+                </div>
+
+                <div
+                  role="tablist"
+                  aria-label="顧客と店舗の切り替え"
+                  className="grid grid-cols-2 gap-1.5 rounded-2xl border-2 border-[#1C1A16] bg-[#EFEAE0] p-1"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setPreviewSectionTab("customers")}
+                    className={`min-h-[38px] rounded-xl text-xs font-extrabold ${
+                      previewSectionTab === "customers" ? "bg-[#1C1A16] text-white" : "text-[#474239]"
+                    }`}
+                  >
+                    顧客（登録済み {filteredPins.length}）
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewSectionTab("prospects")}
+                    className={`min-h-[38px] rounded-xl text-xs font-extrabold ${
+                      previewSectionTab === "prospects" ? "bg-[#D94E2B] text-white" : "text-[#474239]"
+                    }`}
+                  >
+                    店舗（候補 {activeCandidates.length}）
+                  </button>
                 </div>
 
                 <div
@@ -890,7 +918,10 @@ export function PublicPreviewShell() {
                                 <button
                                   key={st}
                                   type="button"
-                                  onClick={() => setCandidateRegStatus(st)}
+                                  onClick={() => {
+                                    setCandidateRegStatus(st);
+                                    setCandApptErr("");
+                                  }}
                                   className={`min-h-[32px] rounded-lg border-2 text-[11px] font-extrabold ${
                                     candidateRegStatus === st ? "border-[#1C1A16] bg-[#1C1A16] text-white" : "border-[#D5CEC0] bg-[#FBF9F4]"
                                   }`}
@@ -899,13 +930,38 @@ export function PublicPreviewShell() {
                                 </button>
                               ))}
                             </div>
+                            {candidateRegStatus === "アポ獲得" && (
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <input
+                                  type="date"
+                                  aria-label="アポ日付"
+                                  value={candApptDate}
+                                  onChange={(e) => { setCandApptDate(e.target.value); setCandApptErr(""); }}
+                                  className="min-h-[36px] rounded-lg border-2 border-[#1C1A16] bg-white px-2 text-xs font-bold"
+                                />
+                                <input
+                                  type="time"
+                                  aria-label="アポ時間"
+                                  value={candApptTime}
+                                  onChange={(e) => { setCandApptTime(e.target.value); setCandApptErr(""); }}
+                                  className="min-h-[36px] rounded-lg border-2 border-[#1C1A16] bg-white px-2 text-xs font-bold"
+                                />
+                              </div>
+                            )}
+                            {candApptErr && <p className="text-xs font-extrabold text-red-900">{candApptErr}</p>}
                             <button
                               type="button"
-                              onClick={() => registerCandidateOneClick(selectedPin, candidateRegStatus)}
+                              onClick={() => {
+                                if (candidateRegStatus === "アポ獲得" && (!candApptDate || !candApptTime)) {
+                                  setCandApptErr("「アポ獲得」は日付と時間の入力が必須です");
+                                  return;
+                                }
+                                registerCandidateOneClick(selectedPin, candidateRegStatus);
+                              }}
                               className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl bg-[#D94E2B] text-xs font-extrabold text-white"
                             >
                               <UserPlus className="h-4 w-4" />
-                              <span>「{candidateRegStatus}」で登録する</span>
+                              <span>「{candidateRegStatus}」で顧客登録</span>
                             </button>
                           </div>
                         ) : (
@@ -1132,128 +1188,58 @@ export function PublicPreviewShell() {
                       );
                     })()}
 
-                    <div className="space-y-2.5 rounded-2xl border-2 border-[#D5CEC0] bg-white p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5">
-                          <Route className="h-4 w-4 text-[#D94E2B]" />
-                          <p className="text-sm font-extrabold">最適ルート作成（Routes API）</p>
-                        </div>
-                        {optimizedPreviewRoute && (
-                          <button
-                            type="button"
-                            onClick={() => setOptimizedPreviewRoute(null)}
-                            className="text-xs font-bold text-[#575249] underline"
-                          >
-                            クリア
-                          </button>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {filteredPins.map((pin) => {
-                          const checked = selectedRouteIds.includes(pin.id);
-                          return (
-                            <button
-                              key={pin.id}
-                              type="button"
-                              onClick={() =>
-                                setSelectedRouteIds((prev) =>
-                                  prev.includes(pin.id) ? prev.filter((id) => id !== pin.id) : [...prev, pin.id]
-                                )
-                              }
-                              className={`min-h-[34px] rounded-xl border-2 px-2.5 text-xs font-extrabold ${
-                                checked ? "border-[#D94E2B] bg-[#FFF5F2] text-[#B93818]" : "border-[#D5CEC0] bg-[#FBF9F4]"
-                              }`}
-                            >
-                              {checked ? "✓ " : "+ "}
-                              {pin.name}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      <button
-                        type="button"
-                        disabled={selectedRouteIds.length < 2}
-                        onClick={() => {
-                          const picked = mapStores.filter((m) => selectedRouteIds.includes(m.id));
-                          if (picked.length < 2) return;
-                          const remaining = [...picked];
-                          const first = remaining.shift();
-                          if (!first) return;
-                          const ordered = [first];
-                          while (remaining.length > 0) {
-                            const last = ordered[ordered.length - 1];
-                            let bestIdx = 0;
-                            let bestDist = Infinity;
-                            remaining.forEach((cand, i) => {
-                              const d = Math.hypot(cand.x - last.x, cand.y - last.y);
-                              if (d < bestDist) { bestDist = d; bestIdx = i; }
-                            });
-                            ordered.push(remaining.splice(bestIdx, 1)[0]);
-                          }
-                          setOptimizedPreviewRoute({
-                            ordered,
-                            distanceKm: (ordered.length * 0.6).toFixed(1),
-                            durationMin: ordered.length * 9,
-                          });
-                          notify(`最適ルートを作成しました（${ordered.length}件）`);
-                        }}
-                        className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl bg-[#1C1A16] text-xs font-extrabold text-white disabled:opacity-50"
-                      >
-                        <Route className="h-4 w-4" />
-                        <span>選択した{selectedRouteIds.length}件で最適ルートを作成</span>
-                      </button>
-                      {optimizedPreviewRoute && (
-                        <div className="space-y-2 border-t border-[#EAE3D5] pt-3">
-                          <div className="flex items-center justify-between text-xs font-extrabold">
-                            <span>最適化後の訪問順</span>
-                            <span className="text-[#B93818]">
-                              約{optimizedPreviewRoute.distanceKm}km ・ 約{optimizedPreviewRoute.durationMin}分
-                            </span>
-                          </div>
-                          <ol className="space-y-1.5">
-                            {optimizedPreviewRoute.ordered.map((c, idx) => (
-                              <li key={c.id} className="flex items-center gap-2 rounded-xl bg-[#F7F4ED] px-3 py-2 text-xs">
-                                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#D94E2B] text-[11px] font-extrabold text-white">
-                                  {idx + 1}
-                                </span>
-                                <span className="font-extrabold">{c.name}</span>
-                              </li>
-                            ))}
-                          </ol>
-                          <a
-                            href="https://www.google.com/maps/dir/?api=1&travelmode=walking"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl bg-[#D94E2B] text-xs font-extrabold text-white"
-                          >
-                            <Navigation className="h-4 w-4" />
-                            <span>Google Mapsアプリでナビ開始</span>
-                          </a>
-                        </div>
-                      )}
-                    </div>
-
                     {showPlaceCandidates && (
                       <div className="space-y-2">
                         <p className="text-xs font-extrabold">検索結果（ワンクリックで見込み登録）</p>
                         {SAMPLE_PLACE_CANDIDATES.map((cand) => {
                           const isReg = mapStores.some((m) => m.id === cand.id);
                           return (
-                            <div key={cand.id} className="flex items-center justify-between gap-2 rounded-2xl border-2 border-[#D5CEC0] bg-white p-3">
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-extrabold">{cand.name}</p>
-                                <p className="truncate text-xs text-[#575249]">{cand.address}</p>
+                            <div key={cand.id} className="space-y-2 rounded-2xl border-2 border-[#D5CEC0] bg-white p-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-extrabold">{cand.name}</p>
+                                  <p className="truncate text-xs text-[#575249]">{cand.address}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  disabled={isReg}
+                                  onClick={() => registerCandidateOneClick(cand)}
+                                  className={`flex min-h-[38px] shrink-0 items-center gap-1 rounded-xl px-3 text-xs font-extrabold ${
+                                    isReg ? "border-2 border-emerald-700 bg-emerald-50 text-emerald-950" : "bg-[#D94E2B] text-white"
+                                  }`}
+                                >
+                                  {isReg ? <><Check className="h-3.5 w-3.5" /><span>登録済み</span></> : <><UserPlus className="h-3.5 w-3.5" /><span>顧客登録</span></>}
+                                </button>
                               </div>
                               <button
                                 type="button"
-                                disabled={isReg}
-                                onClick={() => registerCandidateOneClick(cand)}
-                                className={`flex min-h-[38px] shrink-0 items-center gap-1 rounded-xl px-3 text-xs font-extrabold ${
-                                  isReg ? "border-2 border-emerald-700 bg-emerald-50 text-emerald-950" : "bg-[#D94E2B] text-white"
-                                }`}
+                                onClick={() => setExpandedPreviewCandIds((prev) => ({ ...prev, [cand.id]: !prev[cand.id] }))}
+                                className="flex min-h-[34px] w-full items-center justify-center gap-1 rounded-xl border border-[#D5CEC0] bg-[#FBF9F4] text-xs font-extrabold text-[#474239]"
                               >
-                                {isReg ? <><Check className="h-3.5 w-3.5" /><span>登録済み</span></> : <><UserPlus className="h-3.5 w-3.5" /><span>見込み登録</span></>}
+                                <span>{expandedPreviewCandIds[cand.id] ? "営業情報を閉じる" : "営業情報・スクリプトを見る"}</span>
+                                {expandedPreviewCandIds[cand.id] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                               </button>
+                              {expandedPreviewCandIds[cand.id] && (() => {
+                                const info = getPreviewInsight(cand);
+                                return (
+                                  <div className="space-y-2 rounded-xl border border-[#EAE3D5] bg-[#FBF9F4] p-3 text-xs">
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {info.website && (
+                                        <a href={info.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-[#1C1A16] bg-white px-2.5 py-1 font-extrabold">
+                                          <Globe className="h-3 w-3 text-[#D94E2B]" /><span>Webサイト</span>
+                                        </a>
+                                      )}
+                                      <a href={`https://www.google.com/search?q=${encodeURIComponent(cand.name + " Instagram")}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-[#D5CEC0] bg-white px-2.5 py-1 font-extrabold">
+                                        <Instagram className="h-3 w-3 text-[#D94E2B]" /><span>Instagram</span>
+                                      </a>
+                                    </div>
+                                    <ul className="space-y-1 text-[#3D3932]">
+                                      {info.strengths.map((s, i) => <li key={i}>・{s}</li>)}
+                                    </ul>
+                                    <p className="rounded-lg bg-white p-2 font-medium text-[#3D3932]">{info.instagramDm}</p>
+                                  </div>
+                                );
+                              })()}
                             </div>
                           );
                         })}

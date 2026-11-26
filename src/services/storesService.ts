@@ -24,8 +24,9 @@ export interface StoreRecord {
   placeId?: string;
   ownerUid: string;
   ownerName: string;
+  appointmentDate?: string;
+  appointmentTime?: string;
   contractDate?: string;
-  contractAmount?: string;
   createdAt: string;
 }
 
@@ -107,8 +108,12 @@ export async function fetchStores(profile: UserProfile): Promise<StoreRecord[]> 
         placeId: typeof data.placeId === "string" ? data.placeId : undefined,
         ownerUid: String(data.ownerUid ?? ""),
         ownerName: String(data.ownerName ?? ""),
-        contractDate: typeof data.contractDate === "string" ? data.contractDate : "",
-        contractAmount: typeof data.contractAmount === "string" ? data.contractAmount : "",
+        appointmentDate:
+          typeof data.appointmentDate === "string" ? data.appointmentDate : "",
+        appointmentTime:
+          typeof data.appointmentTime === "string" ? data.appointmentTime : "",
+        contractDate:
+          typeof data.contractDate === "string" ? data.contractDate : "",
         createdAt: String(data.createdAt ?? ""),
       };
     })
@@ -126,6 +131,9 @@ export async function createStore(
     lat?: number | null;
     lng?: number | null;
     placeId?: string;
+    appointmentDate?: string;
+    appointmentTime?: string;
+    contractDate?: string;
   },
   mapsApiKey: string
 ): Promise<StoreRecord> {
@@ -149,6 +157,12 @@ export async function createStore(
     placeId: input.placeId ?? "",
     ownerUid: profile.uid,
     ownerName: profile.name,
+    appointmentDate:
+      input.status === "アポ獲得" ? input.appointmentDate ?? "" : "",
+    appointmentTime:
+      input.status === "アポ獲得" ? input.appointmentTime ?? "" : "",
+    contractDate:
+      input.status === "契約済み" ? input.contractDate ?? "" : "",
     createdAt,
   };
   const docRef = await addDoc(collection(db, "stores"), payload);
@@ -159,18 +173,22 @@ export async function updateStoreStatus(
   storeId: string,
   patch: {
     status: CustomerStatus;
+    appointmentDate?: string;
+    appointmentTime?: string;
     contractDate?: string;
-    contractAmount?: string;
   }
 ): Promise<void> {
   if (!db) throw new Error("データベースに接続できません。");
   await updateDoc(doc(db, "stores", storeId), {
     status: patch.status,
-    contractDate: patch.status === "契約済み" ? patch.contractDate ?? "" : "",
-    contractAmount: patch.status === "契約済み" ? patch.contractAmount ?? "" : "",
+    appointmentDate:
+      patch.status === "アポ獲得" ? patch.appointmentDate ?? "" : "",
+    appointmentTime:
+      patch.status === "アポ獲得" ? patch.appointmentTime ?? "" : "",
+    contractDate:
+      patch.status === "契約済み" ? patch.contractDate ?? "" : "",
   });
 }
-
 
 export async function deleteStore(storeId: string): Promise<void> {
   if (!db) throw new Error("データベースに接続できません。");
@@ -185,7 +203,9 @@ export function parseJapaneseAddress(address: string): {
   const prefMatch = clean.match(/^(東京都|北海道|(?:京都|大阪)府|.{2,3}県)/);
   const prefecture = prefMatch ? prefMatch[1] : "";
   const rest = prefecture ? clean.slice(prefecture.length).trim() : clean;
-  const cityMatch = rest.match(/^([^\s\d丁目番地号]+?(?:市[^\s\d丁目番地号]+?区|郡[^\s\d丁目番地号]+?[町村]|[市区町村]))/);
+  const cityMatch = rest.match(
+    /^([^\s\d丁目番地号]+?(?:市[^\s\d丁目番地号]+?区|郡[^\s\d丁目番地号]+?[町村]|[市区町村]))/
+  );
   const city = cityMatch ? cityMatch[1] : "";
   return { prefecture, city };
 }
