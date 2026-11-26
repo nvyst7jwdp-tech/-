@@ -274,6 +274,15 @@ export function CustomerMap({
   const [candError, setCandError] = useState("");
   const [candWarning, setCandWarning] = useState<AppointmentConflictWarning | null>(null);
 
+  const selectedCustomer =
+    selectedKey?.kind === "customer"
+      ? customers.find((c) => c.id === selectedKey.id) ?? null
+      : null;
+  const selectedCandidate =
+    selectedKey?.kind === "candidate"
+      ? candidates.find((c) => c.placeId === selectedKey.id) ?? null
+      : null;
+
   useEffect(() => {
     if (defaultInterviewerUid && !candInterviewerUid) {
       setCandInterviewerUid(defaultInterviewerUid);
@@ -314,15 +323,6 @@ export function CustomerMap({
     existingStores,
     apiKey,
   ]);
-
-  const selectedCustomer =
-    selectedKey?.kind === "customer"
-      ? customers.find((c) => c.id === selectedKey.id) ?? null
-      : null;
-  const selectedCandidate =
-    selectedKey?.kind === "candidate"
-      ? candidates.find((c) => c.placeId === selectedKey.id) ?? null
-      : null;
 
   useEffect(() => {
     if (!apiKey.trim()) {
