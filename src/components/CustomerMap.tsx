@@ -3,13 +3,14 @@ import React, { useEffect, useRef, useState } from "react";
 import { MapPin, Phone, Navigation, X, AlertCircle, UserPlus, Check } from "lucide-react";
 import { SalesInsightPanel } from "./SalesInsightPanel";
 
-export type CustomerStatus =
-  | "未接触"
-  | "アポ獲得"
-  | "商談中"
-  | "申込手続き"
-  | "契約済み"
-  | "見送り";
+export const STORE_STATUS_LIST = [
+  "キック",
+  "アポ獲得",
+  "掲載のみ",
+  "契約済み",
+] as const;
+
+export type CustomerStatus = (typeof STORE_STATUS_LIST)[number];
 
 export interface CustomerPin {
   id: string;
@@ -44,30 +45,20 @@ const STATUS_STYLE: Record<
     badgeClass: "border-emerald-700 bg-emerald-100 text-emerald-950",
     dotClass: "bg-emerald-600",
   },
-  商談中: {
+  アポ獲得: {
     pinColor: "#2563EB",
     badgeClass: "border-blue-700 bg-blue-100 text-blue-950",
     dotClass: "bg-blue-600",
   },
-  アポ獲得: {
-    pinColor: "#D97706",
-    badgeClass: "border-amber-600 bg-amber-100 text-amber-950",
-    dotClass: "bg-amber-600",
-  },
-  申込手続き: {
+  掲載のみ: {
     pinColor: "#7C3AED",
     badgeClass: "border-purple-700 bg-purple-100 text-purple-950",
     dotClass: "bg-purple-600",
   },
-  未接触: {
+  キック: {
     pinColor: "#6B7280",
     badgeClass: "border-stone-500 bg-stone-200 text-stone-900",
     dotClass: "bg-stone-500",
-  },
-  見送り: {
-    pinColor: "#525252",
-    badgeClass: "border-neutral-500 bg-neutral-200 text-neutral-800",
-    dotClass: "bg-neutral-500",
   },
 };
 
@@ -224,7 +215,7 @@ export function CustomerMap({
   customers: CustomerPin[];
   candidates?: PlaceCandidatePin[];
   registeredPlaceIds?: Set<string>;
-  onRegisterCandidate?: (candidate: PlaceCandidatePin) => void;
+  onRegisterCandidate?: (candidate: PlaceCandidatePin, status: CustomerStatus) => void;
   registeringPlaceId?: string | null;
   routePath?: { lat: number; lng: number }[];
   routeOrderMap?: Map<string, number>;
@@ -254,6 +245,7 @@ export function CustomerMap({
   } | null>(null);
   const [mapError, setMapError] = useState("");
   const [mapReady, setMapReady] = useState(false);
+  const [candidateStatus, setCandidateStatus] = useState<CustomerStatus>("キック");
 
   const selectedCustomer =
     selectedKey?.kind === "customer"
@@ -314,7 +306,7 @@ export function CustomerMap({
     const bounds = new google.maps.LatLngBounds();
 
     customers.forEach((customer) => {
-      const style = STATUS_STYLE[customer.status] ?? STATUS_STYLE["未接触"];
+      const style = STATUS_STYLE[customer.status] ?? STATUS_STYLE["キック"];
       const isSelected = selectedKey?.kind === "customer" && selectedKey.id === customer.id;
       const isMine = customer.isMine !== false;
       const orderNum = routeOrderMap?.get(customer.id);
@@ -373,7 +365,7 @@ export function CustomerMap({
       const isSelected =
         selectedKey !== null && `${selectedKey.kind}:${selectedKey.id}` === key;
       if (entry.kind === "customer") {
-        const style = STATUS_STYLE[entry.status ?? "未接触"];
+        const style = STATUS_STYLE[entry.status ?? "キック"];
         entry.marker.setIcon(
           createPinIcon(google, style.pinColor, isSelected, entry.isMine !== false)
         );
@@ -411,7 +403,7 @@ export function CustomerMap({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2 rounded-2xl border-2 border-[#D5CEC0] bg-white px-3.5 py-2.5 text-xs font-extrabold">
-        {(["契約済み", "商談中", "未接触"] as CustomerStatus[]).map((status) => (
+        {STORE_STATUS_LIST.map((status) => (
           <span key={status} className="inline-flex items-center gap-1.5 text-[#1C1A16]">
             <span className={`h-3 w-3 rounded-full ${STATUS_STYLE[status].dotClass}`} />
             <span>{status}</span>
@@ -451,7 +443,7 @@ export function CustomerMap({
                 </span>
                 {selectedCustomer.ownerName && (
                   <span className="text-xs font-bold text-[#575249]">
-                    担当：{selectedCustomer.ownerName}
+                    登録者：{selectedCustomer.ownerName}
                   </span>
                 )}
               </div>
@@ -548,31 +540,56 @@ export function CustomerMap({
             <span>{selectedCandidate.address}</span>
           </p>
           {onRegisterCandidate && (
-            <button
-              type="button"
-              disabled={
-                registeringPlaceId === selectedCandidate.placeId ||
-                registeredPlaceIds?.has(selectedCandidate.placeId)
-              }
-              onClick={() => onRegisterCandidate(selectedCandidate)}
-              className="mt-3 flex min-h-[46px] w-full items-center justify-center gap-1.5 rounded-xl bg-[#D94E2B] px-3 text-xs font-extrabold text-white transition-transform duration-100 active:scale-[0.97] disabled:opacity-60"
-            >
-              {registeredPlaceIds?.has(selectedCandidate.placeId) ? (
-                <>
-                  <Check className="h-4 w-4" />
-                  <span>登録済み</span>
-                </>
-              ) : (
-                <>
-                  <UserPlus className="h-4 w-4" />
-                  <span>
-                    {registeringPlaceId === selectedCandidate.placeId
-                      ? "登録中..."
-                      : "ワンクリックで見込み客として登録"}
-                  </span>
-                </>
+            <div className="mt-3 space-y-2">
+              {!registeredPlaceIds?.has(selectedCandidate.placeId) && (
+                <div>
+                  <p className="mb-1 text-[11px] font-extrabold text-[#575249]">
+                    登録ステータスを選択
+                  </p>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {STORE_STATUS_LIST.map((st) => (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={() => setCandidateStatus(st)}
+                        className={`min-h-[34px] rounded-lg border-2 px-1 text-[11px] font-extrabold transition-transform duration-100 active:scale-[0.97] ${
+                          candidateStatus === st
+                            ? "border-[#1C1A16] bg-[#1C1A16] text-white"
+                            : "border-[#D5CEC0] bg-white text-[#3D3932]"
+                        }`}
+                      >
+                        {st}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
-            </button>
+              <button
+                type="button"
+                disabled={
+                  registeringPlaceId === selectedCandidate.placeId ||
+                  registeredPlaceIds?.has(selectedCandidate.placeId)
+                }
+                onClick={() => onRegisterCandidate(selectedCandidate, candidateStatus)}
+                className="flex min-h-[46px] w-full items-center justify-center gap-1.5 rounded-xl bg-[#D94E2B] px-3 text-xs font-extrabold text-white transition-transform duration-100 active:scale-[0.97] disabled:opacity-60"
+              >
+                {registeredPlaceIds?.has(selectedCandidate.placeId) ? (
+                  <>
+                    <Check className="h-4 w-4" />
+                    <span>登録済み</span>
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="h-4 w-4" />
+                    <span>
+                      {registeringPlaceId === selectedCandidate.placeId
+                        ? "登録中..."
+                        : `「${candidateStatus}」で登録する`}
+                    </span>
+                  </>
+                )}
+              </button>
+            </div>
           )}
         </article>
       )}

@@ -16,10 +16,10 @@ import {
   Lock,
   Sparkles,
 } from "lucide-react";
-import { SalesInsightPanel } from "./SalesInsightPanel";
 import type { AppTab, UserProfile } from "../types/gurupo";
 import {
   CustomerMap,
+  STORE_STATUS_LIST,
   type CustomerPin,
   type CustomerStatus,
   type PlaceCandidatePin,
@@ -27,38 +27,21 @@ import {
 import {
   createStore,
   fetchStores,
+  fetchUserNameMap,
   updateStoreStatus,
   type StoreRecord,
 } from "../services/storesService";
 import {
+  RESTAURANT_GENRES,
   searchRestaurantsByPlaceText,
   searchRestaurantsNearby,
+  type RestaurantGenre,
 } from "../services/placesService";
 import {
   computeOptimalRoute,
   type OptimizedRouteResult,
 } from "../services/routesService";
-
-const STATUS_LIST: CustomerStatus[] = [
-  "未接触",
-  "アポ獲得",
-  "商談中",
-  "申込手続き",
-  "契約済み",
-  "見送り",
-];
-
-const DROP_REASONS = [
-  "1. 予算・コスト合意不可",
-  "2. 決裁者不在・面談不可",
-  "3. 他社サービス利用中",
-  "4. 人手不足・運用余力なし",
-  "5. タイミング合わず（繁忙期等）",
-  "6. 店舗方針・業態と不一致",
-  "7. 閉店・改装・移転予定",
-  "8. 連絡不通・音信不通",
-  "9. その他",
-];
+import { SalesInsightPanel } from "./SalesInsightPanel";
 
 export function StoresScreen({
   profile,
@@ -71,6 +54,9 @@ export function StoresScreen({
   const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY ?? "";
   const isLeader = profile.role === "manager" || profile.role === "admin";
   const [stores, setStores] = useState<StoreRecord[]>([]);
+  const [userNameMap, setUserNameMap] = useState<Map<string, string>>(
+    () => new Map([[profile.uid, profile.name]])
+  );
   const [loading, setLoading] = useState(true);
   const [scopeFilter, setScopeFilter] = useState<"mine" | "team">(
     isLeader ? "team" : "mine"
@@ -84,9 +70,13 @@ export function StoresScreen({
 
   // Places API 飲食店検索状態
   const [placeQuery, setPlaceQuery] = useState("");
+  const [selectedGenre, setSelectedGenre] = useState<RestaurantGenre>("すべて");
   const [searchingPlaces, setSearchingPlaces] = useState(false);
   const [placeError, setPlaceError] = useState("");
   const [candidates, setCandidates] = useState<PlaceCandidatePin[]>([]);
+  const [candidateStatusMap, setCandidateStatusMap] = useState<
+    Record<string, CustomerStatus>
+  >({});
   const [registeringPlaceId, setRegisteringPlaceId] = useState<string | null>(null);
 
   // Routes API 最適ルート状態
@@ -101,12 +91,12 @@ export function StoresScreen({
   const [newAddress, setNewAddress] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [newSituation, setNewSituation] = useState("");
+  const [newStatus, setNewStatus] = useState<CustomerStatus>("キック");
   const [savingNew, setSavingNew] = useState(false);
 
   // ステータス編集モーダル
   const [editingStore, setEditingStore] = useState<StoreRecord | null>(null);
-  const [editStatus, setEditStatus] = useState<CustomerStatus>("未接触");
-  const [editDropReason, setEditDropReason] = useState("");
+  const [editStatus, setEditStatus] = useState<CustomerStatus>("キック");
   const [editContractDate, setEditContractDate] = useState("");
   const [editContractAmount, setEditContractAmount] = useState("");
   const [editError, setEditError] = useState("");
@@ -120,9 +110,11 @@ export function StoresScreen({
   useEffect(() => {
     let active = true;
     setLoading(true);
-    fetchStores(profile)
-      .then((list) => {
-        if (active) setStores(list);
+    Promise.all([fetchStores(profile), fetchUserNameMap(profile)])
+      .then(([list, nameMap]) => {
+        if (!active) return;
+        setStores(list);
+        setUserNameMap(nameMap);
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -131,6 +123,9 @@ export function StoresScreen({
       active = false;
     };
   }, [profile]);
+
+  const resolveOwnerName = (store: StoreRecord) =>
+    userNameMap.get(store.ownerUid) || store.ownerName || "担当者";
 
   const registeredPlaceIds = useMemo(() => {
     const set = new Set<string>();
@@ -165,9 +160,9 @@ export function StoresScreen({
         memo: s.situation,
         placeId: s.placeId,
         isMine: s.ownerUid === profile.uid,
-        ownerName: s.ownerName,
+        ownerName: resolveOwnerName(s),
       }));
-  }, [filteredStores, profile.uid]);
+  }, [filteredStores, profile.uid, userNameMap]);
 
   const handleSearchCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -182,11 +177,13 @@ export function StoresScreen({
           const list = await searchRestaurantsNearby(
             pos.coords.latitude,
             pos.coords.longitude,
-            mapsApiKey
+            mapsApiKey,
+            selectedGenre
           );
           setCandidates(list);
           setViewMode("map");
-          showToast(`周辺の飲食店を${list.length}件見つけました`);
+          const genreLabel = selectedGenre === "すべて" ? "飲食店" : selectedGenre;
+          showToast(`周辺の${genreLabel}を${list.length}件見つけました`);
         } catch (err) {
           setPlaceError(err instanceof Error ? err.message : "検索に失敗しました。");
         } finally {
@@ -207,10 +204,15 @@ export function StoresScreen({
     setPlaceError("");
     setSearchingPlaces(true);
     try {
-      const list = await searchRestaurantsByPlaceText(placeQuery, mapsApiKey);
+      const list = await searchRestaurantsByPlaceText(
+        placeQuery,
+        mapsApiKey,
+        selectedGenre
+      );
       setCandidates(list);
       setViewMode("map");
-      showToast(`「${placeQuery.trim()}」周辺の飲食店を${list.length}件見つけました`);
+      const genreLabel = selectedGenre === "すべて" ? "飲食店" : selectedGenre;
+      showToast(`「${placeQuery.trim()}」周辺の${genreLabel}を${list.length}件見つけました`);
     } catch (err) {
       setPlaceError(err instanceof Error ? err.message : "検索に失敗しました。");
     } finally {
@@ -218,18 +220,23 @@ export function StoresScreen({
     }
   };
 
-  const handleRegisterCandidate = async (candidate: PlaceCandidatePin) => {
+  const handleRegisterCandidate = async (
+    candidate: PlaceCandidatePin,
+    chosenStatus: CustomerStatus
+  ) => {
     if (registeredPlaceIds.has(candidate.placeId)) return;
     setRegisteringPlaceId(candidate.placeId);
     try {
+      const genreMemo =
+        selectedGenre !== "すべて" ? `（${selectedGenre}検索）` : "";
       const created = await createStore(
         profile,
         {
           name: candidate.name,
           address: candidate.address,
           phone: candidate.phone ?? "",
-          situation: "周辺検索から見込み客として登録",
-          status: "未接触",
+          situation: `周辺検索から「${chosenStatus}」で登録${genreMemo}`,
+          status: chosenStatus,
           lat: candidate.lat,
           lng: candidate.lng,
           placeId: candidate.placeId,
@@ -237,7 +244,7 @@ export function StoresScreen({
         mapsApiKey
       );
       setStores((prev) => [created, ...prev]);
-      showToast(`${candidate.name} を見込み客として登録しました`);
+      showToast(`${candidate.name} を「${chosenStatus}」で登録しました`);
     } catch (err) {
       setPlaceError(err instanceof Error ? err.message : "登録に失敗しました。");
     } finally {
@@ -258,6 +265,11 @@ export function StoresScreen({
       prev.includes(storeId) ? prev.filter((id) => id !== storeId) : [...prev, storeId]
     );
   };
+
+  const visibleSelectedRouteCount = useMemo(
+    () => mapPins.filter((pin) => selectedRouteIds.includes(pin.id)).length,
+    [mapPins, selectedRouteIds]
+  );
 
   const handleOptimizeRoute = async () => {
     const selectedPins = mapPins.filter((pin) => selectedRouteIds.includes(pin.id));
@@ -291,7 +303,7 @@ export function StoresScreen({
           address: newAddress,
           phone: newPhone,
           situation: newSituation,
-          status: "未接触",
+          status: newStatus,
         },
         mapsApiKey
       );
@@ -300,6 +312,7 @@ export function StoresScreen({
       setNewAddress("");
       setNewPhone("");
       setNewSituation("");
+      setNewStatus("キック");
       setShowAddModal(false);
       showToast(
         created.lat !== null
@@ -314,7 +327,6 @@ export function StoresScreen({
   const openEditor = (store: StoreRecord) => {
     setEditingStore(store);
     setEditStatus(store.status);
-    setEditDropReason(store.dropReason || "");
     setEditContractDate(store.contractDate || new Date().toISOString().slice(0, 10));
     setEditContractAmount(store.contractAmount || "");
     setEditError("");
@@ -323,10 +335,6 @@ export function StoresScreen({
   const handleSaveStatus = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingStore) return;
-    if (editStatus === "見送り" && !editDropReason) {
-      setEditError("「見送り」の場合は理由を9項目から選択してください。");
-      return;
-    }
     if (editStatus === "契約済み") {
       if (!editContractDate) {
         setEditError("「契約済み」の場合は契約日を入力してください。");
@@ -341,7 +349,6 @@ export function StoresScreen({
     try {
       await updateStoreStatus(editingStore.id, {
         status: editStatus,
-        dropReason: editDropReason,
         contractDate: editContractDate,
         contractAmount: editContractAmount,
       });
@@ -351,7 +358,6 @@ export function StoresScreen({
             ? {
                 ...s,
                 status: editStatus,
-                dropReason: editStatus === "見送り" ? editDropReason : "",
                 contractDate: editStatus === "契約済み" ? editContractDate : "",
                 contractAmount: editStatus === "契約済み" ? editContractAmount : "",
               }
@@ -426,7 +432,7 @@ export function StoresScreen({
         </div>
       )}
 
-      {/* Places API 周辺飲食店検索パネル */}
+      {/* Places API 周辺飲食店検索パネル（ジャンル絞り込み対応） */}
       <section className="space-y-2.5 rounded-2xl border-2 border-[#D5CEC0] bg-white p-3.5">
         <div className="flex items-center justify-between">
           <p className="text-xs font-extrabold text-[#1C1A16]">周辺の飲食店を探す（Places API）</p>
@@ -439,6 +445,24 @@ export function StoresScreen({
               候補をクリア
             </button>
           )}
+        </div>
+
+        {/* ジャンル絞り込み */}
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          {RESTAURANT_GENRES.map((genre) => (
+            <button
+              key={genre}
+              type="button"
+              onClick={() => setSelectedGenre(genre)}
+              className={`min-h-[34px] shrink-0 rounded-full border-2 px-3 text-[11px] font-extrabold transition-transform duration-100 active:scale-[0.97] ${
+                selectedGenre === genre
+                  ? "border-[#D94E2B] bg-[#D94E2B] text-white"
+                  : "border-[#D5CEC0] bg-[#FBF9F4] text-[#3D3932]"
+              }`}
+            >
+              {genre}
+            </button>
+          ))}
         </div>
 
         <form onSubmit={handleSearchPlaceText} className="flex gap-2">
@@ -465,7 +489,11 @@ export function StoresScreen({
           className="flex min-h-[42px] w-full items-center justify-center gap-1.5 rounded-xl border-2 border-[#1C1A16] bg-[#F7F4ED] text-xs font-extrabold text-[#1C1A16] active:scale-[0.97] disabled:opacity-60"
         >
           <LocateFixed className="h-4 w-4 text-[#D94E2B]" />
-          <span>{searchingPlaces ? "検索中..." : "現在地周辺の飲食店を検索"}</span>
+          <span>
+            {searchingPlaces
+              ? "検索中..."
+              : `現在地周辺の${selectedGenre === "すべて" ? "飲食店" : selectedGenre}を検索`}
+          </span>
         </button>
 
         {placeError && (
@@ -509,9 +537,9 @@ export function StoresScreen({
         </div>
       </div>
 
-      {/* ステータス絞り込み */}
+      {/* ステータス絞り込み（4ステータスのみ） */}
       <div className="flex gap-1.5 overflow-x-auto pb-1">
-        {(["すべて", ...STATUS_LIST] as const).map((st) => (
+        {(["すべて", ...STORE_STATUS_LIST] as const).map((st) => (
           <button
             key={st}
             type="button"
@@ -535,7 +563,9 @@ export function StoresScreen({
             customers={mapPins}
             candidates={candidates}
             registeredPlaceIds={registeredPlaceIds}
-            onRegisterCandidate={(cand) => void handleRegisterCandidate(cand)}
+            onRegisterCandidate={(cand, chosenStatus) =>
+              void handleRegisterCandidate(cand, chosenStatus)
+            }
             registeringPlaceId={registeringPlaceId}
             routePath={optimizedRoute?.polylinePath ?? []}
             routeOrderMap={routeOrderMap}
@@ -599,7 +629,7 @@ export function StoresScreen({
 
                 <button
                   type="button"
-                  disabled={optimizingRoute || mapPins.filter((p) => selectedRouteIds.includes(p.id)).length < 2}
+                  disabled={optimizingRoute || visibleSelectedRouteCount < 2}
                   onClick={() => void handleOptimizeRoute()}
                   className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl bg-[#1C1A16] text-xs font-extrabold text-white disabled:opacity-50"
                 >
@@ -607,7 +637,7 @@ export function StoresScreen({
                   <span>
                     {optimizingRoute
                       ? "最適ルートを計算中..."
-                      : `選択した${mapPins.filter((p) => selectedRouteIds.includes(p.id)).length}件で最適ルートを作成`}
+                      : `選択した${visibleSelectedRouteCount}件で最適ルートを作成`}
                   </span>
                 </button>
               </>
@@ -652,45 +682,75 @@ export function StoresScreen({
             )}
           </section>
 
-          {/* 検索結果からワンクリック登録できるリスト */}
+          {/* 検索結果からステータスを選択して登録できるリスト */}
           {candidates.length > 0 && (
             <section className="space-y-2.5">
               <h2 className="text-sm font-extrabold text-[#1C1A16]">
-                検索結果（{candidates.length}件）— ワンクリックで見込み客登録
+                検索結果（{candidates.length}件）— ステータスを選んで登録
               </h2>
               {candidates.map((cand) => {
                 const isRegistered = registeredPlaceIds.has(cand.placeId);
+                const chosenStatus = candidateStatusMap[cand.placeId] ?? "キック";
                 return (
                   <div
                     key={cand.placeId}
-                    className="flex items-center justify-between gap-3 rounded-2xl border-2 border-[#D5CEC0] bg-white p-3.5"
+                    className="space-y-2.5 rounded-2xl border-2 border-[#D5CEC0] bg-white p-3.5"
                   >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-extrabold text-[#1C1A16]">{cand.name}</p>
-                      <p className="truncate text-xs font-medium text-[#575249]">{cand.address}</p>
-                    </div>
-                    <button
-                      type="button"
-                      disabled={isRegistered || registeringPlaceId === cand.placeId}
-                      onClick={() => void handleRegisterCandidate(cand)}
-                      className={`flex min-h-[42px] shrink-0 items-center gap-1 rounded-xl px-3 text-xs font-extrabold active:scale-[0.97] ${
-                        isRegistered
-                          ? "border-2 border-emerald-700 bg-emerald-50 text-emerald-950"
-                          : "bg-[#D94E2B] text-white"
-                      }`}
-                    >
-                      {isRegistered ? (
-                        <>
-                          <Check className="h-4 w-4" />
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-extrabold text-[#1C1A16]">
+                          {cand.name}
+                        </p>
+                        <p className="truncate text-xs font-medium text-[#575249]">
+                          {cand.address}
+                        </p>
+                      </div>
+                      {isRegistered && (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-emerald-700 bg-emerald-50 px-2.5 py-1 text-xs font-extrabold text-emerald-950">
+                          <Check className="h-3.5 w-3.5" />
                           <span>登録済み</span>
-                        </>
-                      ) : (
-                        <>
-                          <UserPlus className="h-4 w-4" />
-                          <span>{registeringPlaceId === cand.placeId ? "登録中" : "見込み登録"}</span>
-                        </>
+                        </span>
                       )}
-                    </button>
+                    </div>
+
+                    {!isRegistered && (
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {STORE_STATUS_LIST.map((st) => (
+                            <button
+                              key={st}
+                              type="button"
+                              onClick={() =>
+                                setCandidateStatusMap((prev) => ({
+                                  ...prev,
+                                  [cand.placeId]: st,
+                                }))
+                              }
+                              className={`min-h-[34px] rounded-lg border-2 px-1 text-[11px] font-extrabold active:scale-[0.97] ${
+                                chosenStatus === st
+                                  ? "border-[#1C1A16] bg-[#1C1A16] text-white"
+                                  : "border-[#D5CEC0] bg-[#FBF9F4] text-[#3D3932]"
+                              }`}
+                            >
+                              {st}
+                            </button>
+                          ))}
+                        </div>
+                        <button
+                          type="button"
+                          disabled={registeringPlaceId === cand.placeId}
+                          onClick={() => void handleRegisterCandidate(cand, chosenStatus)}
+                          className="flex min-h-[40px] w-full items-center justify-center gap-1.5 rounded-xl bg-[#D94E2B] px-3 text-xs font-extrabold text-white active:scale-[0.97] disabled:opacity-60"
+                        >
+                          <UserPlus className="h-4 w-4" />
+                          <span>
+                            {registeringPlaceId === cand.placeId
+                              ? "登録中..."
+                              : `「${chosenStatus}」で登録する`}
+                          </span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -709,9 +769,9 @@ export function StoresScreen({
                 <span className="rounded-md border border-[#D5CEC0] bg-[#F7F4ED] px-2 py-0.5 text-xs font-extrabold">
                   {store.status}
                 </span>
-                {store.ownerName && (
-                  <span className="text-xs font-bold text-[#575249]">担当：{store.ownerName}</span>
-                )}
+                <span className="text-xs font-bold text-[#575249]">
+                  登録者：{resolveOwnerName(store)}
+                </span>
               </div>
               <h2 className="mt-1.5 text-base font-extrabold text-[#1C1A16]">{store.name}</h2>
               {store.address && (
@@ -822,6 +882,25 @@ export function StoresScreen({
                 className="min-h-[46px] w-full rounded-xl border-2 border-[#D5CEC0] bg-white pl-9 pr-3 text-sm"
               />
             </div>
+            <div>
+              <p className="mb-1 text-xs font-extrabold text-[#575249]">登録ステータス</p>
+              <div className="grid grid-cols-4 gap-1.5">
+                {STORE_STATUS_LIST.map((st) => (
+                  <button
+                    key={st}
+                    type="button"
+                    onClick={() => setNewStatus(st)}
+                    className={`min-h-[38px] rounded-xl border-2 text-xs font-extrabold ${
+                      newStatus === st
+                        ? "border-[#1C1A16] bg-[#1C1A16] text-white"
+                        : "border-[#D5CEC0] bg-white text-[#1C1A16]"
+                    }`}
+                  >
+                    {st}
+                  </button>
+                ))}
+              </div>
+            </div>
             <input
               type="text"
               value={newSituation}
@@ -834,7 +913,7 @@ export function StoresScreen({
               disabled={savingNew}
               className="min-h-[48px] w-full rounded-2xl bg-[#D94E2B] text-sm font-extrabold text-white disabled:opacity-60"
             >
-              {savingNew ? "登録中..." : "登録する"}
+              {savingNew ? "登録中..." : `「${newStatus}」で登録する`}
             </button>
           </form>
         </div>
@@ -861,8 +940,8 @@ export function StoresScreen({
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              {STATUS_LIST.map((st) => (
+            <div className="grid grid-cols-2 gap-2">
+              {STORE_STATUS_LIST.map((st) => (
                 <button
                   key={st}
                   type="button"
@@ -880,20 +959,6 @@ export function StoresScreen({
                 </button>
               ))}
             </div>
-            {editStatus === "見送り" && (
-              <select
-                value={editDropReason}
-                onChange={(e) => setEditDropReason(e.target.value)}
-                className="min-h-[46px] w-full rounded-xl border-2 border-[#1C1A16] bg-white px-3 text-sm font-bold"
-              >
-                <option value="">見送り理由を選択（必須）</option>
-                {DROP_REASONS.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-            )}
             {editStatus === "契約済み" && (
               <div className="grid grid-cols-2 gap-2">
                 <input

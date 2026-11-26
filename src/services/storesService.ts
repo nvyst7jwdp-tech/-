@@ -23,10 +23,40 @@ export interface StoreRecord {
   placeId?: string;
   ownerUid: string;
   ownerName: string;
-  dropReason?: string;
   contractDate?: string;
   contractAmount?: string;
   createdAt: string;
+}
+
+export function normalizeStoreStatus(raw: unknown): CustomerStatus {
+  const s = String(raw ?? "").trim();
+  if (s === "キック" || s === "アポ獲得" || s === "掲載のみ" || s === "契約済み") {
+    return s;
+  }
+  if (s === "商談中" || s === "申込手続き") return "アポ獲得";
+  return "キック";
+}
+
+export async function fetchUserNameMap(profile: UserProfile): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  if (profile.uid && profile.name) {
+    map.set(profile.uid, profile.name);
+  }
+  if (!db) return map;
+  if (profile.role !== "manager" && profile.role !== "admin") {
+    return map;
+  }
+  try {
+    const snap = await getDocs(collection(db, "users"));
+    snap.docs.forEach((d) => {
+      const data = d.data();
+      const name = String(data.name ?? "").trim();
+      if (name) map.set(d.id, name);
+    });
+  } catch {
+    // 権限不足時はフォールバック
+  }
+  return map;
 }
 
 export async function geocodeAddress(
@@ -69,14 +99,13 @@ export async function fetchStores(profile: UserProfile): Promise<StoreRecord[]> 
         name: String(data.name ?? ""),
         address: String(data.address ?? ""),
         phone: String(data.phone ?? ""),
-        status: (data.status as CustomerStatus) || "未接触",
+        status: normalizeStoreStatus(data.status),
         situation: String(data.situation ?? ""),
         lat: typeof data.lat === "number" ? data.lat : null,
         lng: typeof data.lng === "number" ? data.lng : null,
         placeId: typeof data.placeId === "string" ? data.placeId : undefined,
         ownerUid: String(data.ownerUid ?? ""),
         ownerName: String(data.ownerName ?? ""),
-        dropReason: typeof data.dropReason === "string" ? data.dropReason : "",
         contractDate: typeof data.contractDate === "string" ? data.contractDate : "",
         contractAmount: typeof data.contractAmount === "string" ? data.contractAmount : "",
         createdAt: String(data.createdAt ?? ""),
@@ -129,7 +158,6 @@ export async function updateStoreStatus(
   storeId: string,
   patch: {
     status: CustomerStatus;
-    dropReason?: string;
     contractDate?: string;
     contractAmount?: string;
   }
@@ -137,7 +165,6 @@ export async function updateStoreStatus(
   if (!db) throw new Error("データベースに接続できません。");
   await updateDoc(doc(db, "stores", storeId), {
     status: patch.status,
-    dropReason: patch.status === "見送り" ? patch.dropReason ?? "" : "",
     contractDate: patch.status === "契約済み" ? patch.contractDate ?? "" : "",
     contractAmount: patch.status === "契約済み" ? patch.contractAmount ?? "" : "",
   });

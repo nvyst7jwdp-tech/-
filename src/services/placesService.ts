@@ -1,6 +1,19 @@
 import { loadGoogleMapsScript, type PlaceCandidatePin } from "../components/CustomerMap";
 import type { PlaceSalesDetails } from "./geminiSalesService";
 
+export const RESTAURANT_GENRES = [
+  "すべて",
+  "カフェ",
+  "焼肉",
+  "居酒屋",
+  "ラーメン",
+  "イタリアン",
+  "和食",
+  "スイーツ",
+] as const;
+
+export type RestaurantGenre = (typeof RESTAURANT_GENRES)[number];
+
 type PlacesResultRaw = {
   place_id?: string;
   name?: string;
@@ -40,7 +53,8 @@ function mapPlacesResults(results: unknown[] | null): PlaceCandidatePin[] {
 export async function searchRestaurantsNearby(
   lat: number,
   lng: number,
-  apiKey: string
+  apiKey: string,
+  genre: RestaurantGenre = "すべて"
 ): Promise<PlaceCandidatePin[]> {
   if (!apiKey.trim()) throw new Error("Google Maps APIキーが未設定です。");
   const google = await loadGoogleMapsScript(apiKey.trim());
@@ -50,29 +64,37 @@ export async function searchRestaurantsNearby(
   const container = document.createElement("div");
   const service = new google.maps.places.PlacesService(container);
 
+  const req: {
+    location: { lat: number; lng: number };
+    radius: number;
+    type?: string;
+    keyword?: string;
+  } = {
+    location: { lat, lng },
+    radius: 800,
+    type: genre === "カフェ" ? "cafe" : "restaurant",
+  };
+  if (genre !== "すべて") {
+    req.keyword = genre;
+  }
+
   return new Promise((resolve, reject) => {
-    service.nearbySearch(
-      {
-        location: { lat, lng },
-        radius: 800,
-        type: "restaurant",
-      },
-      (results, status) => {
-        if (status === "OK") {
-          resolve(mapPlacesResults(results));
-        } else if (status === "ZERO_RESULTS") {
-          resolve([]);
-        } else {
-          reject(new Error(`周辺検索に失敗しました（${status}）`));
-        }
+    service.nearbySearch(req, (results, status) => {
+      if (status === "OK") {
+        resolve(mapPlacesResults(results));
+      } else if (status === "ZERO_RESULTS") {
+        resolve([]);
+      } else {
+        reject(new Error(`周辺検索に失敗しました（${status}）`));
       }
-    );
+    });
   });
 }
 
 export async function searchRestaurantsByPlaceText(
   placeText: string,
-  apiKey: string
+  apiKey: string,
+  genre: RestaurantGenre = "すべて"
 ): Promise<PlaceCandidatePin[]> {
   if (!placeText.trim()) return [];
   if (!apiKey.trim()) throw new Error("Google Maps APIキーが未設定です。");
@@ -82,11 +104,12 @@ export async function searchRestaurantsByPlaceText(
   }
   const container = document.createElement("div");
   const service = new google.maps.places.PlacesService(container);
+  const genreSuffix = genre === "すべて" ? "飲食店" : genre;
 
   return new Promise((resolve, reject) => {
     service.textSearch(
       {
-        query: `${placeText.trim()} 飲食店`,
+        query: `${placeText.trim()} ${genreSuffix}`,
       },
       (results, status) => {
         if (status === "OK") {
@@ -100,7 +123,6 @@ export async function searchRestaurantsByPlaceText(
     );
   });
 }
-
 
 type PlaceDetailsRaw = {
   place_id?: string;

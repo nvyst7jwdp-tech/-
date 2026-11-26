@@ -26,6 +26,7 @@ import {
   Instagram,
   Copy,
   Loader2,
+  PhoneCall,
 } from "lucide-react";
 
 const INITIAL_ANNOUNCEMENTS = [
@@ -68,21 +69,25 @@ const SAMPLE_TEAM_MEMBERS_KPI = [
 ];
 
 const SAMPLE_MAP_STORES = [
-  { id: "map-1", name: "サンプル店舗A", status: "商談中", address: "架空市中央1-2-3", phone: "000-0101-0001", memo: "次回対応日を4日超過", x: 28, y: 34, ownerUid: "u-satou", ownerName: "佐藤 健太" },
-  { id: "map-2", name: "サンプル食堂B", status: "未接触", address: "架空市緑ヶ丘2-8-10", phone: "000-0101-0002", memo: "新規アプローチ候補", x: 68, y: 28, ownerUid: "u-satou", ownerName: "佐藤 健太" },
+  { id: "map-1", name: "サンプル店舗A", status: "アポ獲得", address: "架空市中央1-2-3", phone: "000-0101-0001", memo: "次回対応日を4日超過", x: 28, y: 34, ownerUid: "u-satou", ownerName: "佐藤 健太" },
+  { id: "map-2", name: "サンプル食堂B", status: "キック", address: "架空市緑ヶ丘2-8-10", phone: "000-0101-0002", memo: "新規アプローチ候補", x: 68, y: 28, ownerUid: "u-satou", ownerName: "佐藤 健太" },
   { id: "map-3", name: "サンプル手打ちそばE", status: "契約済み", address: "架空市川端4-1-9", phone: "000-0101-0004", memo: "年間プラン契約完了", x: 74, y: 66, ownerUid: "u-tanaka", ownerName: "田中 翔" },
-  { id: "map-4", name: "サンプルカフェF", status: "商談中", address: "架空市南町3-4-5", phone: "000-0101-0005", memo: "掲載プラン比較資料を送付済み", x: 38, y: 72, ownerUid: "u-yamada", ownerName: "山田 陽子" },
+  { id: "map-4", name: "サンプルカフェF", status: "掲載のみ", address: "架空市南町3-4-5", phone: "000-0101-0005", memo: "掲載プラン比較資料を送付済み", x: 38, y: 72, ownerUid: "u-yamada", ownerName: "山田 陽子" },
 ];
 
 const SAMPLE_PLACE_CANDIDATES = [
-  { id: "cand-1", name: "サンプル和食 葵", status: "未接触", address: "架空市中央1-5-2", phone: "000-0202-0001", memo: "周辺検索候補（未登録）", x: 52, y: 42, ownerUid: "u-satou", ownerName: "佐藤 健太" },
-  { id: "cand-2", name: "サンプル餃子 龍", status: "未接触", address: "架空市中央2-1-8", phone: "000-0202-0002", memo: "周辺検索候補（未登録）", x: 20, y: 62, ownerUid: "u-satou", ownerName: "佐藤 健太" },
+  { id: "cand-1", name: "サンプル和食 葵", status: "キック", address: "架空市中央1-5-2", phone: "000-0202-0001", memo: "周辺検索候補（未登録）", x: 52, y: 42, ownerUid: "u-satou", ownerName: "佐藤 健太" },
+  { id: "cand-2", name: "サンプル餃子 龍", status: "キック", address: "架空市中央2-1-8", phone: "000-0202-0002", memo: "周辺検索候補（未登録）", x: 20, y: 62, ownerUid: "u-satou", ownerName: "佐藤 健太" },
 ];
+
+const PREVIEW_STORE_STATUSES = ["キック", "アポ獲得", "掲載のみ", "契約済み"] as const;
+const PREVIEW_GENRES = ["すべて", "カフェ", "焼肉", "居酒屋", "ラーメン", "イタリアン", "和食"] as const;
 
 const PIN_STYLES: Record<string, { bg: string; badge: string; dot: string }> = {
   契約済み: { bg: "#059669", badge: "border-emerald-700 bg-emerald-100 text-emerald-950", dot: "bg-emerald-600" },
-  商談中: { bg: "#2563EB", badge: "border-blue-700 bg-blue-100 text-blue-950", dot: "bg-blue-600" },
-  未接触: { bg: "#6B7280", badge: "border-stone-500 bg-stone-200 text-stone-900", dot: "bg-stone-500" },
+  アポ獲得: { bg: "#2563EB", badge: "border-blue-700 bg-blue-100 text-blue-950", dot: "bg-blue-600" },
+  掲載のみ: { bg: "#7C3AED", badge: "border-purple-700 bg-purple-100 text-purple-950", dot: "bg-purple-600" },
+  キック: { bg: "#6B7280", badge: "border-stone-500 bg-stone-200 text-stone-900", dot: "bg-stone-500" },
 };
 
 type PreviewInsight = {
@@ -90,8 +95,8 @@ type PreviewInsight = {
   rating: string;
   attributes: string[];
   strengths: string[];
-  emailSubject: string;
-  emailBody: string;
+  instagramDm: string;
+  teleapoScript: string;
 };
 
 const SAMPLE_SALES_INSIGHTS: Record<string, PreviewInsight> = {
@@ -102,39 +107,27 @@ const SAMPLE_SALES_INSIGHTS: Record<string, PreviewInsight> = {
     strengths: [
       "駅近かつ予約対応で接待・会食需要を取り込みやすい立地と運用体制",
       "口コミで料理の盛り付けと接客の丁寧さが高評価（★4.3）",
-      "ディナー中心の単価帯で、リピーター獲得と相性が良い",
+      "ディナー中心の単価帯で、SNS経由のリピーター獲得と相性が良い",
     ],
-    emailSubject: "【ぐるポ】サンプル店舗A様の魅力発信と新規集客のご提案",
-    emailBody: "サンプル店舗A ご担当者様\n\n突然のご連絡失礼いたします。グルメSNS『ぐるポ』担当の佐藤と申します。\n\n貴店の公式情報や口コミを拝見し、駅からのアクセスの良さと丁寧な接客・予約対応による会食利用のしやすさが大変魅力的だと感じご連絡いたしました。\n\nぜひ一度、写真・動画を活用した新規来店づくりの事例をご紹介できれば幸いです。",
-  },
-  "cand-1": {
-    website: "https://example.com/sample-washoku-aoi",
-    rating: "★4.5（142件）",
-    attributes: ["個室傾向", "ランチ営業", "ディナー営業"],
-    strengths: [
-      "ランチ・ディナー両営業により昼夜それぞれの顧客層にアプローチ可能",
-      "和食の季節感・盛り付けに関する写真評価が高く、SNS映えに強い",
-      "高評価口コミ（★4.5）が多く、紹介経由の来店ポテンシャルが高い",
-    ],
-    emailSubject: "【ぐるポ】サンプル和食 葵様の季節料理の魅力を広げるご提案",
-    emailBody: "サンプル和食 葵 ご担当者様\n\nはじめまして。グルメSNS『ぐるポ』担当の佐藤と申します。\n\n昼夜それぞれの時間帯で高い評価を集められている点や、季節感のある和食のビジュアル訴求が素晴らしいと感じ、ご連絡いたしました。\n\n15分ほどオンラインまたはお伺いにて活用事例をお話しできれば幸いです。",
+    instagramDm: "はじめまして！グルメSNS『ぐるポ』の佐藤と申します。\nサンプル店舗A様の丁寧な接客と会食向けのお料理写真を拝見し、思わずご連絡いたしました！\n『ぐるポ』では近隣の飲食店好きユーザーへ自然にお店の魅力を届けられるので、もしよろしければ一度事例をお送りしてもよろしいでしょうか？",
+    teleapoScript: "①挨拶：お忙しいところ恐れ入ります。グルメSNS『ぐるポ』の佐藤と申します。\n②フック：駅近で予約対応もしっかりされていて、口コミ★4.3と非常に評判が良いのを拝見しお電話しました。\n③提案：会食・ディナー利用の新しいお客様に写真でお店の雰囲気を届ける掲載枠のご案内です。\n④打診：10分ほどオンラインかお伺いで事例をお見せできればと思うのですが、今週ご都合いかがでしょうか？",
   },
 };
 
-function getPreviewInsight(store: { id: string; name: string }) {
+function getPreviewInsight(store: { id: string; name: string }): PreviewInsight {
   const hit = SAMPLE_SALES_INSIGHTS[store.id];
   if (hit) return hit;
   return {
     website: "https://example.com/" + encodeURIComponent(store.id),
-    rating: "★4.1（54件）",
+    rating: "★4.2（68件）",
     attributes: ["イートイン可", "ディナー営業"],
     strengths: [
       `${store.name}ならではの看板メニューと安定した口コミ評価`,
       "近隣エリアでの認知拡大により新規・再来の両面で伸びしろが大きい",
-      "写真と来店動機を紐づけたSNS訴求と相性が良い業態",
+      "料理のビジュアルを活かしたInstagram・SNS訴求と相性が良い業態",
     ],
-    emailSubject: `【ぐるポ】${store.name}様の新規集客・ファンづくりに関するご提案`,
-    emailBody: `${store.name} ご担当者様\n\n突然のご連絡失礼いたします。グルメSNS『ぐるポ』担当の佐藤と申します。\n\n地域の皆さまからの高い評価とお店独自のこだわりを拝見し、ぜひ『ぐるポ』での魅力発信をご提案したくご連絡いたしました。\n\nご都合の良いお時間に5〜10分ほどご説明の機会をいただけますと幸いです。`,
+    instagramDm: `はじめまして！グルメSNS『ぐるポ』の佐藤と申します。\n${store.name}様の看板メニューと素敵なお店の雰囲気を拝見し、ご連絡いたしました！\n地域のグルメ好きの方にお店の魅力をさらに広めるお手伝いができそうでしたので、よろしければ簡単な紹介資料をお送りしてもよろしいでしょうか？`,
+    teleapoScript: `①挨拶：お忙しいところ恐れ入ります。グルメSNS『ぐるポ』担当の佐藤と申します。\n②フック：${store.name}様の口コミ評価やお店の雰囲気を拝見し、ぜひご紹介したくお電話いたしました。\n③提案：エリア内で飲食店を探しているユーザーに、看板メニューの魅力を直接届けられるサービスです。\n④打診：5〜10分ほどご説明の機会をいただけますと幸いです。`,
   };
 }
 
@@ -182,7 +175,9 @@ export function PublicPreviewShell() {
   const [storeFilter, setStoreFilter] = useState("すべて");
   const [selectedListStoreId, setSelectedListStoreId] = useState<string | null>(null);
   const [insightLoading, setInsightLoading] = useState(false);
-  const [insightCopied, setInsightCopied] = useState(false);
+  const [storeGenre, setStoreGenre] = useState("すべて");
+  const [candidateRegStatus, setCandidateRegStatus] = useState("キック");
+  const [insightCopiedMode, setInsightCopiedMode] = useState<"dm" | "teleapo" | null>(null);
   const [mapStores, setMapStores] = useState(SAMPLE_MAP_STORES);
   const [placeSearchText, setPlaceSearchText] = useState("");
   const [showPlaceCandidates, setShowPlaceCandidates] = useState(true);
@@ -206,7 +201,7 @@ export function PublicPreviewShell() {
   useEffect(() => {
     if (!selectedPinId && !selectedListStoreId) return;
     setInsightLoading(true);
-    setInsightCopied(false);
+    setInsightCopiedMode(null);
     const t = setTimeout(() => setInsightLoading(false), 380);
     return () => clearTimeout(t);
   }, [selectedPinId, selectedListStoreId]);
@@ -575,14 +570,14 @@ export function PublicPreviewShell() {
               null;
             const isSelectedCandidate = activeCandidates.some((c) => c.id === selectedPin?.id);
 
-            const registerCandidateOneClick = (cand: typeof SAMPLE_PLACE_CANDIDATES[number]) => {
+            const registerCandidateOneClick = (cand: typeof SAMPLE_PLACE_CANDIDATES[number], chosenStatus = candidateRegStatus) => {
               if (mapStores.some((m) => m.id === cand.id)) return;
               setMapStores((prev) => [
-                { ...cand, status: "未接触", memo: "周辺検索から見込み客として登録" },
+                { ...cand, status: chosenStatus, memo: `周辺検索から「${chosenStatus}」で登録` },
                 ...prev,
               ]);
               setSelectedPinId(cand.id);
-              notify(`${cand.name} を見込み客として登録しました`);
+              notify(`${cand.name} を「${chosenStatus}」で登録しました`);
             };
 
             return (
@@ -642,6 +637,20 @@ export function PublicPreviewShell() {
 
                 <div className="space-y-2 rounded-2xl border-2 border-[#D5CEC0] bg-white p-3.5">
                   <p className="text-xs font-extrabold">周辺の飲食店を探す（Places API）</p>
+                  <div className="flex gap-1.5 overflow-x-auto pb-1">
+                    {PREVIEW_GENRES.map((g) => (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => setStoreGenre(g)}
+                        className={`min-h-[30px] shrink-0 rounded-full border-2 px-2.5 text-[11px] font-extrabold ${
+                          storeGenre === g ? "border-[#D94E2B] bg-[#D94E2B] text-white" : "border-[#D5CEC0] bg-[#FBF9F4] text-[#3D3932]"
+                        }`}
+                      >
+                        {g}
+                      </button>
+                    ))}
+                  </div>
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -683,7 +692,7 @@ export function PublicPreviewShell() {
                 />
 
                 <div className="flex gap-1.5 overflow-x-auto pb-1">
-                  {["すべて", "契約済み", "商談中", "未接触"].map((st) => (
+                  {["すべて", ...PREVIEW_STORE_STATUSES].map((st) => (
                     <button
                       key={st}
                       type="button"
@@ -700,7 +709,7 @@ export function PublicPreviewShell() {
                 {storeViewMode === "map" ? (
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center gap-2 rounded-2xl border-2 border-[#D5CEC0] bg-white px-3.5 py-2.5 text-xs font-extrabold">
-                      {["契約済み", "商談中", "未接触"].map((st) => (
+                      {PREVIEW_STORE_STATUSES.map((st) => (
                         <span key={st} className="inline-flex items-center gap-1.5">
                           <span className={`h-3 w-3 rounded-full ${PIN_STYLES[st].dot}`} />
                           <span>{st}</span>
@@ -788,7 +797,7 @@ export function PublicPreviewShell() {
                             </span>
                             {!isSelectedCandidate && "ownerName" in selectedPin && selectedPin.ownerName && (
                               <span className="ml-1.5 text-xs font-bold text-[#575249]">
-                                担当：{selectedPin.ownerName}
+                                登録者：{selectedPin.ownerName}
                               </span>
                             )}
                             <h3 className="mt-1.5 text-base font-extrabold">{selectedPin.name}</h3>
@@ -805,14 +814,30 @@ export function PublicPreviewShell() {
                         <p className="mt-1.5 text-xs font-bold text-[#474239]">{selectedPin.address}</p>
                         <p className="mt-2 rounded-xl bg-[#F7F4ED] px-3 py-2 text-xs text-[#3D3932]">{selectedPin.memo}</p>
                         {isSelectedCandidate ? (
-                          <button
-                            type="button"
-                            onClick={() => registerCandidateOneClick(selectedPin)}
-                            className="mt-3 flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl bg-[#D94E2B] text-xs font-extrabold text-white"
-                          >
-                            <UserPlus className="h-4 w-4" />
-                            <span>ワンクリックで見込み客として登録</span>
-                          </button>
+                          <div className="mt-3 space-y-2">
+                            <div className="grid grid-cols-4 gap-1.5">
+                              {PREVIEW_STORE_STATUSES.map((st) => (
+                                <button
+                                  key={st}
+                                  type="button"
+                                  onClick={() => setCandidateRegStatus(st)}
+                                  className={`min-h-[32px] rounded-lg border-2 text-[11px] font-extrabold ${
+                                    candidateRegStatus === st ? "border-[#1C1A16] bg-[#1C1A16] text-white" : "border-[#D5CEC0] bg-[#FBF9F4]"
+                                  }`}
+                                >
+                                  {st}
+                                </button>
+                              ))}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => registerCandidateOneClick(selectedPin, candidateRegStatus)}
+                              className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl bg-[#D94E2B] text-xs font-extrabold text-white"
+                            >
+                              <UserPlus className="h-4 w-4" />
+                              <span>「{candidateRegStatus}」で登録する</span>
+                            </button>
+                          </div>
                         ) : (
                           <div className="mt-3 grid grid-cols-2 gap-2">
                             <button
@@ -915,33 +940,61 @@ export function PublicPreviewShell() {
                                 </ul>
                               </div>
 
-                              <div className="space-y-2 rounded-xl border border-[#EAE3D5] bg-white p-3">
+                              <div className="space-y-2 rounded-xl border-2 border-[#D94E2B]/40 bg-white p-3">
                                 <div className="flex items-center justify-between gap-2">
-                                  <p className="text-xs font-extrabold">メール営業テンプレート</p>
+                                  <div className="flex items-center gap-1.5">
+                                    <Instagram className="h-3.5 w-3.5 text-[#D94E2B]" />
+                                    <p className="text-xs font-extrabold">Instagram DM用プロンプト</p>
+                                  </div>
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      const full = `件名: ${previewInsight.emailSubject}\n\n${previewInsight.emailBody}`;
                                       if (navigator.clipboard?.writeText) {
-                                        navigator.clipboard.writeText(full).catch(() => {});
+                                        navigator.clipboard.writeText(previewInsight.instagramDm).catch(() => {});
                                       }
-                                      setInsightCopied(true);
-                                      notify("営業メールをコピーしました");
-                                      setTimeout(() => setInsightCopied(false), 1800);
+                                      setInsightCopiedMode("dm");
+                                      notify("Instagram DM用プロンプトをコピーしました");
+                                      setTimeout(() => setInsightCopiedMode(null), 1800);
                                     }}
                                     className={`inline-flex min-h-[32px] items-center gap-1 rounded-lg px-2.5 text-xs font-extrabold text-white ${
-                                      insightCopied ? "bg-emerald-700" : "bg-[#1C1A16]"
+                                      insightCopiedMode === "dm" ? "bg-emerald-700" : "bg-[#D94E2B]"
                                     }`}
                                   >
-                                    {insightCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                                    <span>{insightCopied ? "コピー済み" : "コピー"}</span>
+                                    {insightCopiedMode === "dm" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                                    <span>{insightCopiedMode === "dm" ? "コピー済み" : "DMをコピー"}</span>
                                   </button>
                                 </div>
-                                <div className="rounded-lg bg-[#F7F4ED] px-2.5 py-1.5 text-xs font-extrabold">
-                                  件名：{previewInsight.emailSubject}
+                                <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed text-[#3D3932]">
+                                  {previewInsight.instagramDm}
+                                </pre>
+                              </div>
+
+                              <div className="space-y-2 rounded-xl border border-[#EAE3D5] bg-white p-3">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <PhoneCall className="h-3.5 w-3.5 text-[#1C1A16]" />
+                                    <p className="text-xs font-extrabold">テレアポ用プロンプト</p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (navigator.clipboard?.writeText) {
+                                        navigator.clipboard.writeText(previewInsight.teleapoScript).catch(() => {});
+                                      }
+                                      setInsightCopiedMode("teleapo");
+                                      notify("テレアポ用プロンプトをコピーしました");
+                                      setTimeout(() => setInsightCopiedMode(null), 1800);
+                                    }}
+                                    className={`inline-flex min-h-[32px] items-center gap-1 rounded-lg px-2.5 text-xs font-extrabold text-white ${
+                                      insightCopiedMode === "teleapo" ? "bg-emerald-700" : "bg-[#1C1A16]"
+                                    }`}
+                                  >
+                                    {insightCopiedMode === "teleapo" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                                    <span>{insightCopiedMode === "teleapo" ? "コピー済み" : "テレアポをコピー"}</span>
+                                  </button>
                                 </div>
                                 <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed text-[#3D3932]">
-                                  {previewInsight.emailBody}
+                                  {previewInsight.teleapoScript}
                                 </pre>
                               </div>
                             </>
@@ -1087,7 +1140,7 @@ export function PublicPreviewShell() {
                             {st.status}
                           </span>
                           {st.ownerName && (
-                            <span className="text-xs font-bold text-[#575249]">担当：{st.ownerName}</span>
+                            <span className="text-xs font-bold text-[#575249]">登録者：{st.ownerName}</span>
                           )}
                         </div>
                         <h3 className="mt-1.5 text-base font-extrabold">{st.name}</h3>
