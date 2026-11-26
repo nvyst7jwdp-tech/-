@@ -1,0 +1,17 @@
+name: Move Preview Fix
+on: push
+permissions:
+  contents: write
+jobs:
+  move:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          [ -f "PublicPreviewShell.tsx" ] && mv -f PublicPreviewShell.tsx src/components/PublicPreviewShell.tsx
+          rm -f .github/workflows/unzip.yml
+          git config user.name "actions-user"
+          git config user.email "actions@github.com"
+          git add -A
+          git commit -m "Move fixed PublicPreviewShell" || true
+          git push
