@@ -194,7 +194,7 @@ export function PublicPreviewShell() {
   const [insightLoading, setInsightLoading] = useState(false);
   const [storeGenre, setStoreGenre] = useState("すべて");
   const [candidateRegStatus, setCandidateRegStatus] = useState("キック");
-  const [insightCopiedMode, setInsightCopiedMode] = useState<"dm" | "teleapo" | null>(null);
+  const [insightCopiedMode, setInsightCopiedMode] = useState<"dm" | "email" | "teleapo" | null>(null);
   const [previewPref, setPreviewPref] = useState("すべて");
   const [previewCity, setPreviewCity] = useState("すべて");
   const [previewDeletingStore, setPreviewDeletingStore] = useState<{ id: string; name: string } | null>(null);
