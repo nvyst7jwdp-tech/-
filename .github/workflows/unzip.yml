@@ -1,0 +1,22 @@
+name: Place Stores V7 Files
+on: push
+permissions:
+  contents: write
+jobs:
+  move:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p src/components src/services src/lib
+          for f in CustomerMap.tsx StoresScreen.tsx PublicPreviewShell.tsx; do
+            [ -f "$f" ] && mv -f "$f" src/components/
+          done
+          [ -f "travelTimeService.ts" ] && mv -f travelTimeService.ts src/services/
+          [ -f "appointmentScheduleCheck.ts" ] && mv -f appointmentScheduleCheck.ts src/lib/
+          rm -f .github/workflows/unzip.yml
+          git config user.name "actions-user"
+          git config user.email "actions@github.com"
+          git add -A
+          git commit -m "Apply stores v7 updates" || true
+          git push
