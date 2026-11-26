@@ -17,8 +17,8 @@ export interface PlaceSalesDetails {
 
 export interface SalesInsightResult {
   strengths: string[];
-  emailSubject: string;
-  emailBody: string;
+  instagramDm: string;
+  teleapoScript: string;
 }
 
 function priceLevelLabel(level?: number): string {
@@ -69,8 +69,12 @@ export async function generateSalesInsight(params: {
       : "口コミ本文なし";
 
   const prompt = `あなたは飲食店向けグルメSNSサービス「ぐるポ」の優秀な法人営業アシスタントです。
+現在のメイン営業手段は「InstagramのDM」であり、補助的に「テレアポ（電話営業）」も行います。
 以下の公開情報（Googleビジネスプロフィール情報・Webサイト有無・営業時間・属性・写真点数・口コミなど）を総合的に分析し、
-この店舗ならではの「営業視点の強み」を3〜5個抽出し、その強みを自然に盛り込んだ丁寧な営業メールテンプレートを作成してください。
+1) 営業視点の強み（3〜5個）
+2) そのまま使えるInstagram DM用メッセージ
+3) 電話でそのまま話せるトークポイント形式のテレアポ用台本
+を作成してください。
 
 【店舗情報】
 - 店名: ${details.name}
@@ -89,34 +93,52 @@ ${reviewText}
 【営業担当者名】
 ${salesRepName || "ぐるポ営業担当"}
 
-【ルール】
-1. 強みは口コミだけでなく、Webサイト・営業時間・価格帯・属性・写真点数（ビジュアル訴求力）なども踏まえて3〜5個にまとめる。
-   例：「個室や予約対応があり接待・会食利用に向いている」「ランチからディナーまで営業しており集客導線が広い」「写真点数が多くSNSとの相性が良い」など。
-2. 営業メールは押しつけがましくなく、相手店舗の強みへの敬意が伝わる丁寧な日本語にする。
-3. 件名は具体的で開封されやすいものにする。
-4. 本文の署名は営業担当者名を使う（プレースホルダーのままにしない）。
+【出力ルール】
+1. strengths（3〜5個）:
+   - 口コミだけでなく、Webサイト・営業時間・価格帯・属性・写真点数（SNS映え）なども踏まえて営業視点の強みを抽出する。
+2. instagramDm（Instagram DM用プロンプト/文面）:
+   - スマホで読みやすい短め・自然なトーン（200〜300文字前後）。
+   - 売り込み感を抑え、店舗の具体的な強みへの共感＋「ぐるポ」で相性が良さそうな理由＋軽い返信ハードルの低い一言で締める。
+3. teleapoScript（テレアポ用プロンプト/トークポイント）:
+   - 電話口でサッと見て話せる箇条書きトークポイント形式（「①挨拶・名乗り」「②フック（お店の強みへの言及）」「③提案メリット」「④アポ打診」）。
+   - 担当者の名前（${salesRepName || "ぐるポ営業担当"}）を自然に入れる。
 
 必ず以下のJSON形式のみで出力してください:
 {
   "strengths": ["強み1", "強み2", "強み3"],
-  "emailSubject": "件名",
-  "emailBody": "本文"
+  "instagramDm": "Instagram DM文面",
+  "teleapoScript": "テレアポ用トークポイント"
 }`;
 
-  const modelsToTry = ["gemini-3.8-flash", "gemini-2.5-flash"];
-  let json: {
-    error?: { message?: string };
+  type GeminiResp = {
+    error?: { code?: number; status?: string; message?: string };
     candidates?: {
       content?: { parts?: { text?: string }[] };
     }[];
-  } = {};
-  let succeeded = false;
+  };
 
-  for (const model of modelsToTry) {
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  function isTransientError(status: number, message?: string): boolean {
+    if (status === 429 || status === 503 || status === 500) return true;
+    const m = (message || "").toLowerCase();
+    return (
+      m.includes("high demand") ||
+      m.includes("overloaded") ||
+      m.includes("temporarily") ||
+      m.includes("try again") ||
+      m.includes("rate limit")
+    );
+  }
+
+  async function callGenerateContent(
+    modelName: string
+  ): Promise<{ ok: boolean; status: number; data: GeminiResp }> {
+    const cleanModel = modelName.replace(/^models\//, "");
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
-        key
-      )}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+        cleanModel
+      )}:generateContent?key=${encodeURIComponent(key)}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -129,15 +151,91 @@ ${salesRepName || "ぐるポ営業担当"}
         }),
       }
     );
-    json = (await res.json()) as typeof json;
-    if (res.ok) {
+    const data = (await res.json()) as GeminiResp;
+    return { ok: res.ok, status: res.status, data };
+  }
+
+  function rankFallbackModel(name: string): number {
+    const n = name.toLowerCase();
+    if (n.includes("gemini-3") && n.includes("flash")) return 1;
+    if (n.includes("flash-latest") || n.includes("flash-lite")) return 2;
+    if (n.includes("gemini-3") && n.includes("pro")) return 3;
+    if (n.includes("pro-latest")) return 4;
+    if (n.includes("gemini-2.5") || n.includes("gemini-2.0")) return 8;
+    if (n.includes("flash")) return 5;
+    return 9;
+  }
+
+  let json: GeminiResp = {};
+  let succeeded = false;
+  let sawTransient = false;
+  const errors: string[] = [];
+
+  const retryDelays = [0, 1000, 2000];
+  for (const delay of retryDelays) {
+    if (delay > 0) await sleep(delay);
+    const attempt = await callGenerateContent("gemini-3.8-flash");
+    if (attempt.ok) {
+      json = attempt.data;
       succeeded = true;
       break;
+    }
+    const msg = attempt.data.error?.message || "失敗";
+    if (isTransientError(attempt.status, msg)) {
+      sawTransient = true;
+      errors.push(`gemini-3.8-flash: ${msg}`);
+      continue;
+    }
+    errors.push(`gemini-3.8-flash: ${msg}`);
+    break;
+  }
+
+  if (!succeeded) {
+    try {
+      const listRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`
+      );
+      if (listRes.ok) {
+        const listJson = (await listRes.json()) as {
+          models?: { name?: string; supportedGenerationMethods?: string[] }[];
+        };
+        const candidates = (listJson.models ?? [])
+          .filter(
+            (m) =>
+              m.name &&
+              m.supportedGenerationMethods?.includes("generateContent") &&
+              !/gemini-3\.8-flash$/i.test(m.name) &&
+              !/(embedding|imagen|veo|tts|aqa)/i.test(m.name)
+          )
+          .map((m) => m.name as string)
+          .sort((a, b) => rankFallbackModel(a) - rankFallbackModel(b));
+
+        for (const candidateModel of candidates.slice(0, 6)) {
+          const retry = await callGenerateContent(candidateModel);
+          if (retry.ok) {
+            json = retry.data;
+            succeeded = true;
+            break;
+          }
+          const msg = retry.data.error?.message || "失敗";
+          if (isTransientError(retry.status, msg)) {
+            sawTransient = true;
+          }
+          errors.push(`${candidateModel}: ${msg}`);
+        }
+      }
+    } catch {
+      // モデル一覧取得失敗時はそのままエラー処理へ
     }
   }
 
   if (!succeeded) {
-    throw new Error(json.error?.message || "Gemini API での分析に失敗しました。");
+    if (sawTransient) {
+      throw new Error(
+        "AIサーバーが一時的に混雑しています。10秒ほど待ってから「再分析」を押してください。"
+      );
+    }
+    throw new Error(errors[0] || "Gemini API での分析に失敗しました。");
   }
 
   const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
@@ -158,13 +256,13 @@ ${salesRepName || "ぐるポ営業担当"}
     ? parsed.strengths.map((s) => String(s).trim()).filter(Boolean).slice(0, 5)
     : [];
 
-  if (strengths.length === 0 || !parsed.emailSubject || !parsed.emailBody) {
+  if (strengths.length === 0 || !parsed.instagramDm || !parsed.teleapoScript) {
     throw new Error("十分な分析結果を取得できませんでした。再分析をお試しください。");
   }
 
   return {
     strengths,
-    emailSubject: String(parsed.emailSubject).trim(),
-    emailBody: String(parsed.emailBody).trim(),
+    instagramDm: String(parsed.instagramDm).trim(),
+    teleapoScript: String(parsed.teleapoScript).trim(),
   };
 }
