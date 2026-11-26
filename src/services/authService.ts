@@ -19,7 +19,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { auth, db, googleProvider } from "../lib/firebase";
-import type { InviteRecord, UserProfile, UserRole } from "../types/gurupo";
+import type { InviteRecord, UserProfile } from "../types/gurupo";
 
 function requireClients() {
   if (!auth || !db) {
@@ -33,6 +33,22 @@ function generateRandomCode(length = 8): string {
   const bytes = new Uint8Array(length);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (b) => chars[b % chars.length]).join("");
+}
+
+export async function validateInviteCode(inviteCode?: string): Promise<void> {
+  const normalizedCode = inviteCode?.trim().toUpperCase();
+  if (!normalizedCode) return;
+  const { db } = requireClients();
+  const invSnap = await getDoc(doc(db, "invites", normalizedCode));
+  if (!invSnap.exists()) {
+    throw new Error("招待コードが見つかりません。");
+  }
+  const inv = invSnap.data() as InviteRecord;
+  const expired = inv.expiresAt ? new Date(inv.expiresAt).getTime() <= Date.now() : false;
+  const limitReached = inv.maxUses !== null && inv.usedCount >= inv.maxUses;
+  if (inv.revoked || expired || limitReached) {
+    throw new Error("招待コードは無効または有効期限・回数上限に達しています。");
+  }
 }
 
 async function ensureUserProfile(
@@ -101,6 +117,8 @@ async function ensureUserProfile(
 
 export async function loginWithGoogle(inviteCode?: string): Promise<UserProfile> {
   const { auth } = requireClients();
+  await validateInviteCode(inviteCode);
+  googleProvider.setCustomParameters({ prompt: "select_account" });
   const cred = await signInWithPopup(auth, googleProvider);
   return ensureUserProfile(cred.user, "google", undefined, inviteCode);
 }
@@ -112,6 +130,7 @@ export async function registerWithEmail(
   inviteCode?: string
 ): Promise<UserProfile> {
   const { auth } = requireClients();
+  await validateInviteCode(inviteCode);
   const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
   await updateProfile(cred.user, { displayName: name.trim() });
   return ensureUserProfile(cred.user, "email", name.trim(), inviteCode);
@@ -123,6 +142,7 @@ export async function loginWithEmail(
   inviteCode?: string
 ): Promise<UserProfile> {
   const { auth } = requireClients();
+  await validateInviteCode(inviteCode);
   const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
   return ensureUserProfile(cred.user, "email", undefined, inviteCode);
 }
