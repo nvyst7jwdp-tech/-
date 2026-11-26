@@ -29,6 +29,7 @@ import {
   Mail,
   ChevronDown,
   ChevronUp,
+  AlertTriangle,
 } from "lucide-react";
 
 const INITIAL_ANNOUNCEMENTS = [
@@ -947,6 +948,17 @@ export function PublicPreviewShell() {
                                     </option>
                                   ))}
                                 </select>
+                              </div>
+                            )}
+                            {candidateRegStatus === "アポ獲得" && candApptDate && candApptTime && (
+                              <div role="alert" className="space-y-1 rounded-xl border-2 border-amber-500 bg-amber-50 p-2.5 text-xs text-amber-950">
+                                <p className="flex items-start gap-1.5 font-extrabold">
+                                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                                  <span>前の取材終了後の移動を考慮すると、次の取材まで30分以下です。時間に余裕を持たせることをおすすめします。</span>
+                                </p>
+                                <p className="pl-5 text-[11px] font-bold text-amber-900">
+                                  （プレビュー：取材目安1.5〜2時間＋移動約15分で判定。警告が出ても登録は可能です）
+                                </p>
                               </div>
                             )}
                             {candApptErr && <p className="text-xs font-extrabold text-red-900">{candApptErr}</p>}

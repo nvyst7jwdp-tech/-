@@ -1,6 +1,8 @@
 /// <reference types="vite/client" />
 import React, { useEffect, useRef, useState } from "react";
-import { MapPin, Phone, Navigation, X, AlertCircle, UserPlus, Check, Trash2, Calendar } from "lucide-react";
+import { MapPin, Phone, Navigation, X, AlertCircle, AlertTriangle, UserPlus, Check, Trash2, Calendar } from "lucide-react";
+import { checkAppointmentBuffer, type AppointmentConflictWarning } from "../lib/appointmentScheduleCheck";
+import type { StoreRecord } from "../services/storesService";
 import { SalesInsightPanel } from "./SalesInsightPanel";
 
 export const STORE_STATUS_LIST = [
@@ -207,6 +209,7 @@ export function CustomerMap({
   canDeleteCustomer,
   teamMembers = [],
   defaultInterviewerUid = "",
+  existingStores = [],
   showLegend = true,
   mapHeightClass = "h-80",
   showEmptyHint = true,
@@ -230,6 +233,7 @@ export function CustomerMap({
   ) => void;
   teamMembers?: { uid: string; name: string }[];
   defaultInterviewerUid?: string;
+  existingStores?: StoreRecord[];
   registeringPlaceId?: string | null;
   focusTarget?: { id: string; lat: number; lng: number; nonce: number } | null;
   focusCandidateTarget?: { placeId: string; lat: number; lng: number; nonce: number } | null;
@@ -268,12 +272,48 @@ export function CustomerMap({
   const [candApptTime, setCandApptTime] = useState("");
   const [candInterviewerUid, setCandInterviewerUid] = useState(defaultInterviewerUid);
   const [candError, setCandError] = useState("");
+  const [candWarning, setCandWarning] = useState<AppointmentConflictWarning | null>(null);
 
   useEffect(() => {
     if (defaultInterviewerUid && !candInterviewerUid) {
       setCandInterviewerUid(defaultInterviewerUid);
     }
   }, [defaultInterviewerUid, candInterviewerUid]);
+
+  useEffect(() => {
+    if (
+      !selectedCandidate ||
+      candidateStatus !== "アポ獲得" ||
+      !candApptDate ||
+      !candApptTime
+    ) {
+      setCandWarning(null);
+      return;
+    }
+    let cancelled = false;
+    checkAppointmentBuffer({
+      targetDate: candApptDate,
+      targetTime: candApptTime,
+      targetInterviewerUid: candInterviewerUid || defaultInterviewerUid,
+      targetLocation: { lat: selectedCandidate.lat, lng: selectedCandidate.lng },
+      existingStores,
+      mapsApiKey: apiKey,
+    }).then((warn) => {
+      if (!cancelled) setCandWarning(warn);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    selectedCandidate,
+    candidateStatus,
+    candApptDate,
+    candApptTime,
+    candInterviewerUid,
+    defaultInterviewerUid,
+    existingStores,
+    apiKey,
+  ]);
 
   const selectedCustomer =
     selectedKey?.kind === "customer"
@@ -671,6 +711,20 @@ export function CustomerMap({
                     </div>
                   )}
                 </>
+              )}
+              {candWarning && (
+                <div
+                  role="alert"
+                  className="space-y-1 rounded-xl border-2 border-amber-500 bg-amber-50 p-2.5 text-xs text-amber-950"
+                >
+                  <p className="flex items-start gap-1.5 font-extrabold">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                    <span>{candWarning.message}</span>
+                  </p>
+                  <p className="pl-5 text-[11px] font-bold text-amber-900">
+                    {candWarning.detail}
+                  </p>
+                </div>
               )}
               {candError && (
                 <p className="text-xs font-extrabold text-red-900">{candError}</p>

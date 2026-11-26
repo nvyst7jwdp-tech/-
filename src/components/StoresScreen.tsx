@@ -6,6 +6,7 @@ import {
   X,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   LocateFixed,
   UserPlus,
   Lock,
@@ -40,6 +41,7 @@ import {
   type RestaurantGenre,
 } from "../services/placesService";
 import { SalesInsightPanel } from "./SalesInsightPanel";
+import { checkAppointmentBuffer, type AppointmentConflictWarning } from "../lib/appointmentScheduleCheck";
 
 function formatDistanceLabel(meters?: number): string {
   if (typeof meters !== "number" || !Number.isFinite(meters)) return "";
@@ -112,6 +114,7 @@ export function StoresScreen({
     Record<string, { date: string; time: string; interviewerUid?: string }>
   >({});
   const [candidateErrorMap, setCandidateErrorMap] = useState<Record<string, string>>({});
+  const [candidateWarningMap, setCandidateWarningMap] = useState<Record<string, AppointmentConflictWarning | null>>({});
   const [registeringPlaceId, setRegisteringPlaceId] = useState<string | null>(null);
 
   // 削除確認モーダル
@@ -128,6 +131,7 @@ export function StoresScreen({
   const [editInterviewerUid, setEditInterviewerUid] = useState(profile.uid);
   const [editContractDate, setEditContractDate] = useState("");
   const [editError, setEditError] = useState("");
+  const [editBufferWarning, setEditBufferWarning] = useState<AppointmentConflictWarning | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
 
   const showToast = (msg: string) => {
@@ -151,6 +155,64 @@ export function StoresScreen({
       active = false;
     };
   }, [profile]);
+
+  useEffect(() => {
+    if (
+      !editingStore ||
+      editStatus !== "アポ獲得" ||
+      !editApptDate ||
+      !editApptTime
+    ) {
+      setEditBufferWarning(null);
+      return;
+    }
+    let cancelled = false;
+    checkAppointmentBuffer({
+      targetDate: editApptDate,
+      targetTime: editApptTime,
+      targetInterviewerUid: editInterviewerUid || profile.uid,
+      targetLocation: { lat: editingStore.lat, lng: editingStore.lng },
+      existingStores: stores,
+      excludeStoreId: editingStore.id,
+      mapsApiKey,
+    }).then((warn) => {
+      if (!cancelled) setEditBufferWarning(warn);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    editingStore,
+    editStatus,
+    editApptDate,
+    editApptTime,
+    editInterviewerUid,
+    profile.uid,
+    stores,
+    mapsApiKey,
+  ]);
+
+  const runCandidateBufferCheck = (
+    cand: PlaceCandidatePin,
+    date: string,
+    time: string,
+    interviewerUid: string
+  ) => {
+    if (!date || !time) {
+      setCandidateWarningMap((prev) => ({ ...prev, [cand.placeId]: null }));
+      return;
+    }
+    void checkAppointmentBuffer({
+      targetDate: date,
+      targetTime: time,
+      targetInterviewerUid: interviewerUid,
+      targetLocation: { lat: cand.lat, lng: cand.lng },
+      existingStores: stores,
+      mapsApiKey,
+    }).then((warn) => {
+      setCandidateWarningMap((prev) => ({ ...prev, [cand.placeId]: warn }));
+    });
+  };
 
   const resolveOwnerName = (store: StoreRecord) =>
     userNameMap.get(store.ownerUid) || store.ownerName || "担当者";
@@ -851,6 +913,7 @@ export function StoresScreen({
               focusCandidateTarget={focusCandidateTarget}
               teamMembers={teamMembers}
               defaultInterviewerUid={profile.uid}
+              existingStores={stores}
               onRegisterCandidate={(cand, chosenStatus, appt) =>
                 void handleRegisterCandidate(cand, chosenStatus, appt)
               }
@@ -958,6 +1021,14 @@ export function StoresScreen({
                                     ...prev,
                                     [cand.placeId]: "",
                                   }));
+                                  if (st === "アポ獲得") {
+                                    runCandidateBufferCheck(
+                                      cand,
+                                      appt.date,
+                                      appt.time,
+                                      appt.interviewerUid || profile.uid
+                                    );
+                                  }
                                 }}
                                 className={`min-h-[32px] rounded-lg border-2 px-1 text-[11px] font-extrabold active:scale-[0.97] ${
                                   chosenStatus === st
@@ -978,14 +1049,21 @@ export function StoresScreen({
                                   aria-label={`${cand.name}のアポ日付`}
                                   value={appt.date}
                                   onChange={(e) => {
+                                    const nextDate = e.target.value;
                                     setCandidateApptMap((prev) => ({
                                       ...prev,
-                                      [cand.placeId]: { ...appt, date: e.target.value },
+                                      [cand.placeId]: { ...appt, date: nextDate },
                                     }));
                                     setCandidateErrorMap((prev) => ({
                                       ...prev,
                                       [cand.placeId]: "",
                                     }));
+                                    runCandidateBufferCheck(
+                                      cand,
+                                      nextDate,
+                                      appt.time,
+                                      appt.interviewerUid || profile.uid
+                                    );
                                   }}
                                   className="min-h-[36px] rounded-lg border-2 border-[#1C1A16] bg-white px-2 text-xs font-bold"
                                 />
@@ -994,14 +1072,21 @@ export function StoresScreen({
                                   aria-label={`${cand.name}のアポ時間`}
                                   value={appt.time}
                                   onChange={(e) => {
+                                    const nextTime = e.target.value;
                                     setCandidateApptMap((prev) => ({
                                       ...prev,
-                                      [cand.placeId]: { ...appt, time: e.target.value },
+                                      [cand.placeId]: { ...appt, time: nextTime },
                                     }));
                                     setCandidateErrorMap((prev) => ({
                                       ...prev,
                                       [cand.placeId]: "",
                                     }));
+                                    runCandidateBufferCheck(
+                                      cand,
+                                      appt.date,
+                                      nextTime,
+                                      appt.interviewerUid || profile.uid
+                                    );
                                   }}
                                   className="min-h-[36px] rounded-lg border-2 border-[#1C1A16] bg-white px-2 text-xs font-bold"
                                 />
@@ -1009,15 +1094,22 @@ export function StoresScreen({
                               <select
                                 aria-label={`${cand.name}の取材担当`}
                                 value={appt.interviewerUid || profile.uid}
-                                onChange={(e) =>
+                                onChange={(e) => {
+                                  const nextIv = e.target.value;
                                   setCandidateApptMap((prev) => ({
                                     ...prev,
                                     [cand.placeId]: {
                                       ...appt,
-                                      interviewerUid: e.target.value,
+                                      interviewerUid: nextIv,
                                     },
-                                  }))
-                                }
+                                  }));
+                                  runCandidateBufferCheck(
+                                    cand,
+                                    appt.date,
+                                    appt.time,
+                                    nextIv
+                                  );
+                                }}
                                 className="min-h-[36px] w-full rounded-lg border-2 border-[#D5CEC0] bg-white px-2 text-xs font-bold"
                               >
                                 {teamMembers.map((m) => (
@@ -1029,6 +1121,20 @@ export function StoresScreen({
                             </div>
                           )}
 
+                          {chosenStatus === "アポ獲得" && candidateWarningMap[cand.placeId] && (
+                            <div
+                              role="alert"
+                              className="space-y-1 rounded-xl border-2 border-amber-500 bg-amber-50 p-2.5 text-xs text-amber-950"
+                            >
+                              <p className="flex items-start gap-1.5 font-extrabold">
+                                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                                <span>{candidateWarningMap[cand.placeId]?.message}</span>
+                              </p>
+                              <p className="pl-5 text-[11px] font-bold text-amber-900">
+                                {candidateWarningMap[cand.placeId]?.detail}
+                              </p>
+                            </div>
+                          )}
                           {candErr && (
                             <p className="text-xs font-extrabold text-red-900">{candErr}</p>
                           )}
@@ -1194,6 +1300,20 @@ export function StoresScreen({
                   }}
                   className="min-h-[46px] w-full rounded-xl border-2 border-[#1C1A16] bg-white px-3 text-sm font-bold"
                 />
+              </div>
+            )}
+            {editStatus === "アポ獲得" && editBufferWarning && (
+              <div
+                role="alert"
+                className="space-y-1 rounded-xl border-2 border-amber-500 bg-amber-50 p-3 text-xs text-amber-950"
+              >
+                <p className="flex items-start gap-1.5 font-extrabold">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                  <span>{editBufferWarning.message}</span>
+                </p>
+                <p className="pl-5 text-[11px] font-bold text-amber-900">
+                  {editBufferWarning.detail}
+                </p>
               </div>
             )}
             {editError && (
