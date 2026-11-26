@@ -1,0 +1,17 @@
+name: Fix Preview Route Refs
+on: push
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          python3 -c 'from pathlib import Path; import re; p = Path("src/components/PublicPreviewShell.tsx"); s = p.read_text(); s = re.sub(r"\s*\{optimizedPreviewRoute && optimizedPreviewRoute\.ordered\.length >= 2 && \([\s\S]*?\)\}", "", s); s = re.sub(r"\s*const orderIdx = optimizedPreviewRoute\?\.ordered\.findIndex\(.*?\);\n", "\n", s); s = re.sub(r"\s*const orderNum = orderIdx !== undefined && orderIdx >= 0 \? orderIdx \+ 1 : null;\n", "\n", s); s = s.replace("{orderNum ?? pin.name.replace(\"サンプル\", \"\").slice(0, 1)}", "{pin.name.replace(\"サンプル\", \"\").slice(0, 1)}"); p.write_text(s)'
+          rm -f .github/workflows/unzip.yml
+          git config user.name "actions-user"
+          git config user.email "actions@github.com"
+          git add -A
+          git commit -m "Remove leftover optimizedPreviewRoute refs" || true
+          git push
