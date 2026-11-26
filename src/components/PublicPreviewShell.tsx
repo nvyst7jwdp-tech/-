@@ -812,23 +812,12 @@ export function PublicPreviewShell() {
                     <div className={`relative h-72 w-full overflow-hidden rounded-2xl border-2 bg-[#EAE4D7] transition-all ${previewZoomedPinId ? "border-[#D94E2B]" : "border-[#C7BFB0]"}`}>
                       <div className="absolute inset-x-0 top-1/2 h-3 -translate-y-1/2 bg-[#FBF9F4] opacity-85" />
                       <div className="absolute inset-y-0 left-[46%] w-3 bg-[#FBF9F4] opacity-85" />
-                      {optimizedPreviewRoute && optimizedPreviewRoute.ordered.length >= 2 && (
-                        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full">
-                          <polyline
-                            fill="none"
-                            stroke="#D94E2B"
-                            strokeWidth="1.8"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            points={optimizedPreviewRoute.ordered.map((pt) => `${pt.x},${pt.y}`).join(" ")}
                           />
                         </svg>
                       )}
                       {filteredPins.map((pin) => {
                         const isSel = selectedPin?.id === pin.id;
                         const isMinePin = pin.ownerUid === "u-satou";
-                        const orderIdx = optimizedPreviewRoute?.ordered.findIndex((o) => o.id === pin.id);
-                        const orderNum = orderIdx !== undefined && orderIdx >= 0 ? orderIdx + 1 : null;
                         return (
                           <button
                             key={pin.id}
@@ -845,7 +834,7 @@ export function PublicPreviewShell() {
                                 isMinePin ? "h-10 w-10 text-xs opacity-100" : "h-7 w-7 text-[10px] opacity-55"
                               } ${isSel ? "ring-4 ring-[#1C1A16]/30 opacity-100" : ""}`}
                             >
-                              {orderNum ?? pin.name.replace("サンプル", "").slice(0, 1)}
+                              {pin.name.replace("サンプル", "").slice(0, 1)}
                             </span>
                           </button>
                         );
