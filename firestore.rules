@@ -49,7 +49,7 @@ service cloud.firestore {
       allow read: if isActiveApproved() && (isLeader() || resource.data.ownerUid == request.auth.uid);
       allow create: if isActiveApproved() && (isLeader() || request.resource.data.ownerUid == request.auth.uid);
       allow update: if isActiveApproved() && (isLeader() || resource.data.ownerUid == request.auth.uid);
-      allow delete: if isAdmin();
+      allow delete: if isActiveApproved() && (isLeader() || resource.data.ownerUid == request.auth.uid);
     }
 
     match /schedules/{scheduleId} {

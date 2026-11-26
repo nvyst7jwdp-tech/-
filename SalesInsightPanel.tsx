@@ -10,6 +10,7 @@ import {
   AlertCircle,
   Star,
   PhoneCall,
+  Mail,
 } from "lucide-react";
 import { fetchPlaceSalesDetails } from "../services/placesService";
 import {
@@ -59,10 +60,11 @@ export function SalesInsightPanel({
   const [details, setDetails] = useState<PlaceSalesDetails | null>(null);
   const [insight, setInsight] = useState<SalesInsightResult | null>(null);
   const [error, setError] = useState("");
-  const [copiedMode, setCopiedMode] = useState<"dm" | "teleapo" | null>(null);
+  const [scriptTab, setScriptTab] = useState<"dm" | "email" | "teleapo">("dm");
+  const [copiedMode, setCopiedMode] = useState<"dm" | "email" | "teleapo" | null>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
 
-  const cacheKey = `v2:${target.placeId || target.id}:${target.name}`;
+  const cacheKey = `v3:${target.placeId || target.id}:${target.name}`;
   const instagramUrl = buildInstagramSearchUrl(target.name, target.address);
 
   useEffect(() => {
@@ -104,7 +106,7 @@ export function SalesInsightPanel({
           const msg =
             geminiErr instanceof Error
               ? geminiErr.message
-              : "強み・営業プロンプトの生成に失敗しました。";
+              : "強み・営業スクリプトの生成に失敗しました。";
           setError(msg);
           insightCache.set(cacheKey, {
             details: fetchedDetails,
@@ -140,7 +142,7 @@ export function SalesInsightPanel({
     };
   }, [cacheKey, target.name, target.address, target.placeId, mapsApiKey, geminiApiKey, salesRepName, reloadNonce]);
 
-  const handleCopy = async (mode: "dm" | "teleapo", text: string) => {
+  const handleCopy = async (mode: "dm" | "email" | "teleapo", text: string) => {
     await copyText(text);
     setCopiedMode(mode);
     setTimeout(() => setCopiedMode((prev) => (prev === mode ? null : prev)), 2000);
@@ -216,7 +218,7 @@ export function SalesInsightPanel({
       {loading ? (
         <div className="flex items-center justify-center gap-2 rounded-xl border border-[#EAE3D5] bg-white py-5 text-xs font-bold text-[#575249]">
           <Loader2 className="h-4 w-4 animate-spin text-[#D94E2B]" />
-          <span>公開情報から強みとDM・テレアポ用文面を生成中...</span>
+          <span>強みと営業スクリプト（DM・メール・テレアポ）を生成中...</span>
         </div>
       ) : (
         <>
@@ -232,7 +234,7 @@ export function SalesInsightPanel({
               {/* 強み一覧 */}
               <div className="rounded-xl border border-[#EAE3D5] bg-white p-3">
                 <p className="text-xs font-extrabold text-[#1C1A16]">
-                  抽出された店舗の強み（3〜5項目）
+                  抽出された店舗の強み
                 </p>
                 <ul className="mt-2 space-y-1.5">
                   {insight.strengths.map((s, idx) => (
@@ -247,76 +249,135 @@ export function SalesInsightPanel({
                 </ul>
               </div>
 
-              {/* Instagram DM用プロンプト */}
-              <div className="space-y-2 rounded-xl border-2 border-[#D94E2B]/40 bg-white p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <Instagram className="h-3.5 w-3.5 text-[#D94E2B]" />
-                    <p className="text-xs font-extrabold text-[#1C1A16]">
-                      Instagram DM用プロンプト
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void handleCopy("dm", insight.instagramDm)}
-                    className={`inline-flex min-h-[34px] items-center gap-1 rounded-lg px-2.5 text-xs font-extrabold transition-transform duration-100 active:scale-[0.97] ${
-                      copiedMode === "dm"
-                        ? "bg-emerald-700 text-white"
-                        : "bg-[#D94E2B] text-white"
-                    }`}
-                  >
-                    {copiedMode === "dm" ? (
-                      <>
-                        <Check className="h-3.5 w-3.5" />
-                        <span>コピー済み</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-3.5 w-3.5" />
-                        <span>DMをコピー</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-                <pre className="whitespace-pre-wrap font-sans text-xs font-medium leading-relaxed text-[#3D3932]">
-                  {insight.instagramDm}
-                </pre>
-              </div>
-
-              {/* テレアポ用プロンプト */}
+              {/* 3種スクリプト切替タブ */}
               <div className="space-y-2 rounded-xl border border-[#EAE3D5] bg-white p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <PhoneCall className="h-3.5 w-3.5 text-[#1C1A16]" />
-                    <p className="text-xs font-extrabold text-[#1C1A16]">
-                      テレアポ用プロンプト
-                    </p>
-                  </div>
+                <div className="grid grid-cols-3 gap-1 rounded-xl border border-[#D5CEC0] bg-[#EFEAE0] p-1">
                   <button
                     type="button"
-                    onClick={() => void handleCopy("teleapo", insight.teleapoScript)}
-                    className={`inline-flex min-h-[34px] items-center gap-1 rounded-lg px-2.5 text-xs font-extrabold transition-transform duration-100 active:scale-[0.97] ${
-                      copiedMode === "teleapo"
-                        ? "bg-emerald-700 text-white"
-                        : "bg-[#1C1A16] text-white"
+                    onClick={() => setScriptTab("dm")}
+                    className={`flex min-h-[34px] items-center justify-center gap-1 rounded-lg text-[11px] font-extrabold ${
+                      scriptTab === "dm"
+                        ? "bg-[#D94E2B] text-white"
+                        : "text-[#474239]"
                     }`}
                   >
-                    {copiedMode === "teleapo" ? (
-                      <>
-                        <Check className="h-3.5 w-3.5" />
-                        <span>コピー済み</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-3.5 w-3.5" />
-                        <span>テレアポをコピー</span>
-                      </>
-                    )}
+                    <Instagram className="h-3 w-3" />
+                    <span>DM</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScriptTab("email")}
+                    className={`flex min-h-[34px] items-center justify-center gap-1 rounded-lg text-[11px] font-extrabold ${
+                      scriptTab === "email"
+                        ? "bg-[#1C1A16] text-white"
+                        : "text-[#474239]"
+                    }`}
+                  >
+                    <Mail className="h-3 w-3" />
+                    <span>メール</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScriptTab("teleapo")}
+                    className={`flex min-h-[34px] items-center justify-center gap-1 rounded-lg text-[11px] font-extrabold ${
+                      scriptTab === "teleapo"
+                        ? "bg-[#1C1A16] text-white"
+                        : "text-[#474239]"
+                    }`}
+                  >
+                    <PhoneCall className="h-3 w-3" />
+                    <span>テレアポ</span>
                   </button>
                 </div>
-                <pre className="whitespace-pre-wrap font-sans text-xs font-medium leading-relaxed text-[#3D3932]">
-                  {insight.teleapoScript}
-                </pre>
+
+                {scriptTab === "dm" && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-extrabold text-[#1C1A16]">
+                        Instagram DM用スクリプト
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => void handleCopy("dm", insight.instagramDm)}
+                        className={`inline-flex min-h-[32px] items-center gap-1 rounded-lg px-2.5 text-xs font-extrabold text-white ${
+                          copiedMode === "dm" ? "bg-emerald-700" : "bg-[#D94E2B]"
+                        }`}
+                      >
+                        {copiedMode === "dm" ? (
+                          <Check className="h-3.5 w-3.5" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
+                        <span>{copiedMode === "dm" ? "コピー済み" : "コピー"}</span>
+                      </button>
+                    </div>
+                    <pre className="whitespace-pre-wrap font-sans text-xs font-medium leading-relaxed text-[#3D3932]">
+                      {insight.instagramDm}
+                    </pre>
+                  </div>
+                )}
+
+                {scriptTab === "email" && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-extrabold text-[#1C1A16]">
+                        メール営業用スクリプト
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void handleCopy(
+                            "email",
+                            `件名: ${insight.emailSubject}\n\n${insight.emailBody}`
+                          )
+                        }
+                        className={`inline-flex min-h-[32px] items-center gap-1 rounded-lg px-2.5 text-xs font-extrabold text-white ${
+                          copiedMode === "email" ? "bg-emerald-700" : "bg-[#1C1A16]"
+                        }`}
+                      >
+                        {copiedMode === "email" ? (
+                          <Check className="h-3.5 w-3.5" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
+                        <span>{copiedMode === "email" ? "コピー済み" : "コピー"}</span>
+                      </button>
+                    </div>
+                    <div className="rounded-lg bg-[#F7F4ED] px-2.5 py-1.5 text-xs font-extrabold text-[#1C1A16]">
+                      件名：{insight.emailSubject}
+                    </div>
+                    <pre className="whitespace-pre-wrap font-sans text-xs font-medium leading-relaxed text-[#3D3932]">
+                      {insight.emailBody}
+                    </pre>
+                  </div>
+                )}
+
+                {scriptTab === "teleapo" && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-extrabold text-[#1C1A16]">
+                        テレアポ用スクリプト
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => void handleCopy("teleapo", insight.teleapoScript)}
+                        className={`inline-flex min-h-[32px] items-center gap-1 rounded-lg px-2.5 text-xs font-extrabold text-white ${
+                          copiedMode === "teleapo" ? "bg-emerald-700" : "bg-[#1C1A16]"
+                        }`}
+                      >
+                        {copiedMode === "teleapo" ? (
+                          <Check className="h-3.5 w-3.5" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
+                        <span>{copiedMode === "teleapo" ? "コピー済み" : "コピー"}</span>
+                      </button>
+                    </div>
+                    <pre className="whitespace-pre-wrap font-sans text-xs font-medium leading-relaxed text-[#3D3932]">
+                      {insight.teleapoScript}
+                    </pre>
+                  </div>
+                )}
               </div>
             </div>
           )}

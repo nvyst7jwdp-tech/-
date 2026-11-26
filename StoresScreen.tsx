@@ -15,6 +15,7 @@ import {
   Navigation,
   Lock,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import type { AppTab, UserProfile } from "../types/gurupo";
 import {
@@ -26,8 +27,10 @@ import {
 } from "./CustomerMap";
 import {
   createStore,
+  deleteStore,
   fetchStores,
   fetchUserNameMap,
+  parseJapaneseAddress,
   updateStoreStatus,
   type StoreRecord,
 } from "../services/storesService";
@@ -67,6 +70,16 @@ export function StoresScreen({
   const [searchText, setSearchText] = useState("");
   const [toast, setToast] = useState("");
   const [selectedListStoreId, setSelectedListStoreId] = useState<string | null>(null);
+  const [prefFilter, setPrefFilter] = useState("すべて");
+  const [cityFilter, setCityFilter] = useState("すべて");
+  const [focusTarget, setFocusTarget] = useState<{
+    id: string;
+    lat: number;
+    lng: number;
+    nonce: number;
+  } | null>(null);
+  const [deletingStore, setDeletingStore] = useState<{ id: string; name: string } | null>(null);
+  const [deletingBusy, setDeletingBusy] = useState(false);
 
   // Places API 飲食店検索状態
   const [placeQuery, setPlaceQuery] = useState("");
@@ -135,16 +148,76 @@ export function StoresScreen({
     return set;
   }, [stores]);
 
+  const scopedStores = useMemo(
+    () =>
+      stores.filter(
+        (s) => effectiveScope === "team" || s.ownerUid === profile.uid
+      ),
+    [stores, effectiveScope, profile.uid]
+  );
+
+  const prefectureOptions = useMemo(() => {
+    const set = new Set<string>();
+    scopedStores.forEach((s) => {
+      const { prefecture } = parseJapaneseAddress(s.address);
+      if (prefecture) set.add(prefecture);
+    });
+    return ["すべて", ...Array.from(set)];
+  }, [scopedStores]);
+
+  const cityOptions = useMemo(() => {
+    if (prefFilter === "すべて") return ["すべて"];
+    const set = new Set<string>();
+    scopedStores.forEach((s) => {
+      const { prefecture, city } = parseJapaneseAddress(s.address);
+      if (prefecture === prefFilter && city) set.add(city);
+    });
+    return ["すべて", ...Array.from(set)];
+  }, [scopedStores, prefFilter]);
+
   const filteredStores = useMemo(() => {
     const q = searchText.trim().toLowerCase();
-    return stores.filter((s) => {
-      const matchScope = effectiveScope === "team" || s.ownerUid === profile.uid;
+    return scopedStores.filter((s) => {
       const matchStatus = statusFilter === "すべて" || s.status === statusFilter;
       const matchQuery =
         !q || s.name.toLowerCase().includes(q) || s.address.toLowerCase().includes(q);
-      return matchScope && matchStatus && matchQuery;
+      const parsed = parseJapaneseAddress(s.address);
+      const matchPref = prefFilter === "すべて" || parsed.prefecture === prefFilter;
+      const matchCity = cityFilter === "すべて" || parsed.city === cityFilter;
+      return matchStatus && matchQuery && matchPref && matchCity;
     });
-  }, [stores, effectiveScope, profile.uid, statusFilter, searchText]);
+  }, [scopedStores, statusFilter, searchText, prefFilter, cityFilter]);
+
+  const handleFocusOnMap = (store: StoreRecord) => {
+    if (store.lat === null || store.lng === null) {
+      showToast("この店舗には位置情報がありません");
+      return;
+    }
+    setFocusTarget({
+      id: store.id,
+      lat: store.lat,
+      lng: store.lng,
+      nonce: Date.now(),
+    });
+    setViewMode("map");
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingStore) return;
+    setDeletingBusy(true);
+    try {
+      await deleteStore(deletingStore.id);
+      setStores((prev) => prev.filter((s) => s.id !== deletingStore.id));
+      setSelectedRouteIds((prev) => prev.filter((id) => id !== deletingStore.id));
+      if (selectedListStoreId === deletingStore.id) setSelectedListStoreId(null);
+      showToast(`「${deletingStore.name}」を削除しました`);
+      setDeletingStore(null);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "削除に失敗しました");
+    } finally {
+      setDeletingBusy(false);
+    }
+  };
 
   const mapPins: CustomerPin[] = useMemo(() => {
     return filteredStores
@@ -537,6 +610,38 @@ export function StoresScreen({
         </div>
       </div>
 
+      {/* 地域絞り込み（都道府県 → 市区町村） */}
+      <div className="grid grid-cols-2 gap-2">
+        <select
+          aria-label="都道府県で絞り込み"
+          value={prefFilter}
+          onChange={(e) => {
+            setPrefFilter(e.target.value);
+            setCityFilter("すべて");
+          }}
+          className="min-h-[40px] rounded-xl border-2 border-[#D5CEC0] bg-white px-2.5 text-xs font-extrabold text-[#1C1A16] focus:border-[#D94E2B] focus:outline-none"
+        >
+          {prefectureOptions.map((pref) => (
+            <option key={pref} value={pref}>
+              {pref === "すべて" ? "都道府県：すべて" : pref}
+            </option>
+          ))}
+        </select>
+        <select
+          aria-label="市区町村で絞り込み"
+          value={cityFilter}
+          disabled={prefFilter === "すべて"}
+          onChange={(e) => setCityFilter(e.target.value)}
+          className="min-h-[40px] rounded-xl border-2 border-[#D5CEC0] bg-white px-2.5 text-xs font-extrabold text-[#1C1A16] focus:border-[#D94E2B] focus:outline-none disabled:bg-[#EFEAE0] disabled:text-[#8A8377]"
+        >
+          {cityOptions.map((city) => (
+            <option key={city} value={city}>
+              {city === "すべて" ? "市区町村：すべて" : city}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {/* ステータス絞り込み（4ステータスのみ） */}
       <div className="flex gap-1.5 overflow-x-auto pb-1">
         {(["すべて", ...STORE_STATUS_LIST] as const).map((st) => (
@@ -569,6 +674,14 @@ export function StoresScreen({
             registeringPlaceId={registeringPlaceId}
             routePath={optimizedRoute?.polylinePath ?? []}
             routeOrderMap={routeOrderMap}
+            focusTarget={focusTarget}
+            canDeleteCustomer={(pin) =>
+              isLeader ||
+              stores.some((s) => s.id === pin.id && s.ownerUid === profile.uid)
+            }
+            onRequestDelete={(pin) =>
+              setDeletingStore({ id: pin.id, name: pin.name })
+            }
             apiKey={mapsApiKey}
             geminiApiKey={geminiApiKey}
             salesRepName={profile.name}
@@ -769,9 +882,23 @@ export function StoresScreen({
                 <span className="rounded-md border border-[#D5CEC0] bg-[#F7F4ED] px-2 py-0.5 text-xs font-extrabold">
                   {store.status}
                 </span>
-                <span className="text-xs font-bold text-[#575249]">
-                  登録者：{resolveOwnerName(store)}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-[#575249]">
+                    登録者：{resolveOwnerName(store)}
+                  </span>
+                  {(isLeader || store.ownerUid === profile.uid) && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDeletingStore({ id: store.id, name: store.name })
+                      }
+                      aria-label={`${store.name}を削除`}
+                      className="flex h-7 w-7 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-700 active:scale-[0.97]"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
               <h2 className="mt-1.5 text-base font-extrabold text-[#1C1A16]">{store.name}</h2>
               {store.address && (
@@ -785,13 +912,21 @@ export function StoresScreen({
                   状況：{store.situation}
                 </p>
               )}
-              <div className="mt-3 grid grid-cols-3 gap-2">
+              <div className="mt-3 grid grid-cols-4 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleFocusOnMap(store)}
+                  className="flex min-h-[42px] items-center justify-center gap-1 rounded-xl border-2 border-[#D5CEC0] bg-white text-[11px] font-extrabold text-[#1C1A16] active:scale-[0.97]"
+                >
+                  <MapPin className="h-3.5 w-3.5 text-[#D94E2B]" />
+                  <span>地図</span>
+                </button>
                 <button
                   type="button"
                   onClick={() =>
                     setSelectedListStoreId((prev) => (prev === store.id ? null : store.id))
                   }
-                  className={`flex min-h-[44px] items-center justify-center gap-1 rounded-xl border-2 text-xs font-extrabold active:scale-[0.97] ${
+                  className={`flex min-h-[42px] items-center justify-center gap-1 rounded-xl border-2 text-[11px] font-extrabold active:scale-[0.97] ${
                     selectedListStoreId === store.id
                       ? "border-[#D94E2B] bg-[#FFF5F2] text-[#B93818]"
                       : "border-[#D5CEC0] bg-[#FBF9F4] text-[#1C1A16]"
@@ -803,16 +938,16 @@ export function StoresScreen({
                 <button
                   type="button"
                   onClick={() => openEditor(store)}
-                  className="min-h-[44px] rounded-xl border-2 border-[#1C1A16] bg-white text-xs font-extrabold text-[#1C1A16] active:scale-[0.97]"
+                  className="min-h-[42px] rounded-xl border-2 border-[#1C1A16] bg-white text-[11px] font-extrabold text-[#1C1A16] active:scale-[0.97]"
                 >
                   ステータス
                 </button>
                 <button
                   type="button"
                   onClick={() => onNavigateTab("visit")}
-                  className="min-h-[44px] rounded-xl bg-[#D94E2B] text-xs font-extrabold text-white active:scale-[0.97]"
+                  className="min-h-[42px] rounded-xl bg-[#D94E2B] text-[11px] font-extrabold text-white active:scale-[0.97]"
                 >
-                  訪問を記録
+                  訪問記録
                 </button>
               </div>
               {selectedListStoreId === store.id && (
@@ -991,6 +1126,40 @@ export function StoresScreen({
               {savingEdit ? "保存中..." : "保存する"}
             </button>
           </form>
+        </div>
+      )}
+
+      {/* 削除確認モーダル */}
+      {deletingStore && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+        >
+          <div className="gurupo-toast-pop w-full max-w-sm space-y-4 rounded-3xl border-2 border-[#1C1A16] bg-[#FBF9F4] p-5 shadow-2xl">
+            <h2 className="text-base font-extrabold text-[#1C1A16]">店舗を削除しますか？</h2>
+            <p className="text-xs font-medium leading-relaxed text-[#474239]">
+              「<span className="font-extrabold text-[#1C1A16]">{deletingStore.name}</span>」を登録リストから削除します。この操作は取り消せません。
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={deletingBusy}
+                onClick={() => setDeletingStore(null)}
+                className="min-h-[44px] rounded-xl border-2 border-[#D5CEC0] bg-white text-xs font-extrabold text-[#1C1A16]"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                disabled={deletingBusy}
+                onClick={() => void handleConfirmDelete()}
+                className="min-h-[44px] rounded-xl bg-red-700 text-xs font-extrabold text-white disabled:opacity-60"
+              >
+                {deletingBusy ? "削除中..." : "削除する"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

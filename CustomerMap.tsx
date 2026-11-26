@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import React, { useEffect, useRef, useState } from "react";
-import { MapPin, Phone, Navigation, X, AlertCircle, UserPlus, Check } from "lucide-react";
+import { MapPin, Phone, Navigation, X, AlertCircle, UserPlus, Check, Trash2 } from "lucide-react";
 import { SalesInsightPanel } from "./SalesInsightPanel";
 
 export const STORE_STATUS_LIST = [
@@ -75,6 +75,7 @@ export type GoogleMapsApi = {
       }
     ) => {
       setCenter: (pos: { lat: number; lng: number }) => void;
+      setZoom: (zoom: number) => void;
       fitBounds: (bounds: unknown) => void;
     };
     Marker: new (opts: {
@@ -207,6 +208,9 @@ export function CustomerMap({
   registeringPlaceId,
   routePath = [],
   routeOrderMap,
+  focusTarget,
+  onRequestDelete,
+  canDeleteCustomer,
   apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "",
   geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY ?? "",
   salesRepName = "",
@@ -219,6 +223,9 @@ export function CustomerMap({
   registeringPlaceId?: string | null;
   routePath?: { lat: number; lng: number }[];
   routeOrderMap?: Map<string, number>;
+  focusTarget?: { id: string; lat: number; lng: number; nonce: number } | null;
+  onRequestDelete?: (customer: CustomerPin) => void;
+  canDeleteCustomer?: (customer: CustomerPin) => boolean;
   apiKey?: string;
   geminiApiKey?: string;
   salesRepName?: string;
@@ -400,6 +407,16 @@ export function CustomerMap({
     }
   }, [routePath, mapReady]);
 
+  useEffect(() => {
+    if (!focusTarget) return;
+    setSelectedKey({ kind: "customer", id: focusTarget.id });
+    const map = mapInstanceRef.current;
+    if (mapReady && map) {
+      map.setCenter({ lat: focusTarget.lat, lng: focusTarget.lng });
+      map.setZoom(17);
+    }
+  }, [focusTarget, mapReady]);
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2 rounded-2xl border-2 border-[#D5CEC0] bg-white px-3.5 py-2.5 text-xs font-extrabold">
@@ -451,14 +468,26 @@ export function CustomerMap({
                 {selectedCustomer.name}
               </h3>
             </div>
-            <button
-              type="button"
-              onClick={() => setSelectedKey(null)}
-              aria-label="詳細を閉じる"
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-[#EFEAE0] text-[#1C1A16]"
-            >
-              <X className="h-4 w-4" />
-            </button>
+            <div className="flex items-center gap-1.5">
+              {onRequestDelete && (!canDeleteCustomer || canDeleteCustomer(selectedCustomer)) && (
+                <button
+                  type="button"
+                  onClick={() => onRequestDelete(selectedCustomer)}
+                  aria-label="店舗を削除"
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-700 active:scale-[0.97]"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setSelectedKey(null)}
+                aria-label="詳細を閉じる"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#EFEAE0] text-[#1C1A16]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
           {selectedCustomer.address && (
