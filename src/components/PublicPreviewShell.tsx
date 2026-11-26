@@ -27,6 +27,8 @@ import {
   Copy,
   Loader2,
   PhoneCall,
+  Trash2,
+  Mail,
 } from "lucide-react";
 
 const INITIAL_ANNOUNCEMENTS = [
@@ -69,10 +71,10 @@ const SAMPLE_TEAM_MEMBERS_KPI = [
 ];
 
 const SAMPLE_MAP_STORES = [
-  { id: "map-1", name: "サンプル店舗A", status: "アポ獲得", address: "架空市中央1-2-3", phone: "000-0101-0001", memo: "次回対応日を4日超過", x: 28, y: 34, ownerUid: "u-satou", ownerName: "佐藤 健太" },
-  { id: "map-2", name: "サンプル食堂B", status: "キック", address: "架空市緑ヶ丘2-8-10", phone: "000-0101-0002", memo: "新規アプローチ候補", x: 68, y: 28, ownerUid: "u-satou", ownerName: "佐藤 健太" },
-  { id: "map-3", name: "サンプル手打ちそばE", status: "契約済み", address: "架空市川端4-1-9", phone: "000-0101-0004", memo: "年間プラン契約完了", x: 74, y: 66, ownerUid: "u-tanaka", ownerName: "田中 翔" },
-  { id: "map-4", name: "サンプルカフェF", status: "掲載のみ", address: "架空市南町3-4-5", phone: "000-0101-0005", memo: "掲載プラン比較資料を送付済み", x: 38, y: 72, ownerUid: "u-yamada", ownerName: "山田 陽子" },
+  { id: "map-1", name: "サンプル店舗A", status: "アポ獲得", address: "大阪府大阪市中央区1-2-3", phone: "000-0101-0001", memo: "次回対応日を4日超過", x: 28, y: 34, ownerUid: "u-satou", ownerName: "佐藤 健太" },
+  { id: "map-2", name: "サンプル食堂B", status: "キック", address: "大阪府大阪市北区2-8-10", phone: "000-0101-0002", memo: "新規アプローチ候補", x: 68, y: 28, ownerUid: "u-satou", ownerName: "佐藤 健太" },
+  { id: "map-3", name: "サンプル手打ちそばE", status: "契約済み", address: "福岡県筑紫野市天拝坂4-1-9", phone: "000-0101-0004", memo: "年間プラン契約完了", x: 74, y: 66, ownerUid: "u-tanaka", ownerName: "田中 翔" },
+  { id: "map-4", name: "サンプルカフェF", status: "掲載のみ", address: "福岡県福岡市博多区3-4-5", phone: "000-0101-0005", memo: "掲載プラン比較資料を送付済み", x: 38, y: 72, ownerUid: "u-yamada", ownerName: "山田 陽子" },
 ];
 
 const SAMPLE_PLACE_CANDIDATES = [
@@ -90,12 +92,23 @@ const PIN_STYLES: Record<string, { bg: string; badge: string; dot: string }> = {
   キック: { bg: "#6B7280", badge: "border-stone-500 bg-stone-200 text-stone-900", dot: "bg-stone-500" },
 };
 
+function parsePreviewAddress(address: string): { prefecture: string; city: string } {
+  const prefMatch = address.match(/^(東京都|北海道|(?:京都|大阪)府|.{2,3}県)/);
+  const prefecture = prefMatch ? prefMatch[1] : "";
+  const rest = prefecture ? address.slice(prefecture.length).trim() : address;
+  const cityMatch = rest.match(/^([^\s\d丁目番地号]+?(?:市[^\s\d丁目番地号]+?区|[市区町村]))/);
+  const city = cityMatch ? cityMatch[1] : "";
+  return { prefecture, city };
+}
+
 type PreviewInsight = {
   website?: string;
   rating: string;
   attributes: string[];
   strengths: string[];
   instagramDm: string;
+  emailSubject: string;
+  emailBody: string;
   teleapoScript: string;
 };
 
@@ -109,7 +122,9 @@ const SAMPLE_SALES_INSIGHTS: Record<string, PreviewInsight> = {
       "口コミで料理の盛り付けと接客の丁寧さが高評価（★4.3）",
       "ディナー中心の単価帯で、SNS経由のリピーター獲得と相性が良い",
     ],
-    instagramDm: "はじめまして！グルメSNS『ぐるポ』の佐藤と申します。\nサンプル店舗A様の丁寧な接客と会食向けのお料理写真を拝見し、思わずご連絡いたしました！\n『ぐるポ』では近隣の飲食店好きユーザーへ自然にお店の魅力を届けられるので、もしよろしければ一度事例をお送りしてもよろしいでしょうか？",
+    instagramDm: "はじめまして！グルメSNS『ぐるポ』の佐藤です。\nサンプル店舗A様の丁寧な接客と会食向けのお料理が素敵でDMしました！\n近隣の飲食店好きへ自然にお店を届けられるので、よければ事例お送りしましょうか？",
+    emailSubject: "【ぐるポ】サンプル店舗A様の新規集客のご提案",
+    emailBody: "サンプル店舗A ご担当者様\n\nグルメSNS『ぐるポ』の佐藤と申します。\n駅近・予約対応で評価★4.3の強みを活かし、近隣ユーザーの来店を増やす掲載事例がございます。\n5分ほどご説明できれば幸いです。\n\n佐藤 健太",
     teleapoScript: "①挨拶：お忙しいところ恐れ入ります。グルメSNS『ぐるポ』の佐藤と申します。\n②フック：駅近で予約対応もしっかりされていて、口コミ★4.3と非常に評判が良いのを拝見しお電話しました。\n③提案：会食・ディナー利用の新しいお客様に写真でお店の雰囲気を届ける掲載枠のご案内です。\n④打診：10分ほどオンラインかお伺いで事例をお見せできればと思うのですが、今週ご都合いかがでしょうか？",
   },
 };
@@ -126,7 +141,9 @@ function getPreviewInsight(store: { id: string; name: string }): PreviewInsight 
       "近隣エリアでの認知拡大により新規・再来の両面で伸びしろが大きい",
       "料理のビジュアルを活かしたInstagram・SNS訴求と相性が良い業態",
     ],
-    instagramDm: `はじめまして！グルメSNS『ぐるポ』の佐藤と申します。\n${store.name}様の看板メニューと素敵なお店の雰囲気を拝見し、ご連絡いたしました！\n地域のグルメ好きの方にお店の魅力をさらに広めるお手伝いができそうでしたので、よろしければ簡単な紹介資料をお送りしてもよろしいでしょうか？`,
+    instagramDm: `はじめまして！グルメSNS『ぐるポ』の佐藤です。\n${store.name}様の看板メニューと雰囲気が素敵でDMしました！\n近隣のグルメ好きにお店を広める事例があるので、よければ少しご紹介してもよいでしょうか？`,
+    emailSubject: `【ぐるポ】${store.name}様の集客ご提案`,
+    emailBody: `${store.name} ご担当者様\n\nグルメSNS『ぐるポ』の佐藤と申します。\n地域の高評価と看板メニューの強みを活かし、新規来店につなげる掲載事例がございます。\nよろしければ一度資料をお送りさせてください。\n\n佐藤 健太`,
     teleapoScript: `①挨拶：お忙しいところ恐れ入ります。グルメSNS『ぐるポ』担当の佐藤と申します。\n②フック：${store.name}様の口コミ評価やお店の雰囲気を拝見し、ぜひご紹介したくお電話いたしました。\n③提案：エリア内で飲食店を探しているユーザーに、看板メニューの魅力を直接届けられるサービスです。\n④打診：5〜10分ほどご説明の機会をいただけますと幸いです。`,
   };
 }
@@ -178,6 +195,11 @@ export function PublicPreviewShell() {
   const [storeGenre, setStoreGenre] = useState("すべて");
   const [candidateRegStatus, setCandidateRegStatus] = useState("キック");
   const [insightCopiedMode, setInsightCopiedMode] = useState<"dm" | "teleapo" | null>(null);
+  const [previewPref, setPreviewPref] = useState("すべて");
+  const [previewCity, setPreviewCity] = useState("すべて");
+  const [previewDeletingStore, setPreviewDeletingStore] = useState<{ id: string; name: string } | null>(null);
+  const [previewScriptTab, setPreviewScriptTab] = useState<"dm" | "email" | "teleapo">("dm");
+  const [previewZoomedPinId, setPreviewZoomedPinId] = useState<string | null>(null);
   const [mapStores, setMapStores] = useState(SAMPLE_MAP_STORES);
   const [placeSearchText, setPlaceSearchText] = useState("");
   const [showPlaceCandidates, setShowPlaceCandidates] = useState(true);
@@ -552,14 +574,23 @@ export function PublicPreviewShell() {
           {activeTab === "stores" && (() => {
             const effectiveStoreScope = isLeader ? storeScope : "mine";
             const qStore = storeKeyword.trim().toLowerCase();
-            const filteredPins = mapStores.filter((st) => {
-              const matchScope = effectiveStoreScope === "team" || st.ownerUid === "u-satou";
+            const scopedPreviewStores = mapStores.filter(
+              (st) => effectiveStoreScope === "team" || st.ownerUid === "u-satou"
+            );
+            const prefOpts = ["すべて", ...Array.from(new Set(scopedPreviewStores.map((s) => parsePreviewAddress(s.address).prefecture).filter(Boolean)))];
+            const cityOpts = previewPref === "すべて"
+              ? ["すべて"]
+              : ["すべて", ...Array.from(new Set(scopedPreviewStores.filter((s) => parsePreviewAddress(s.address).prefecture === previewPref).map((s) => parsePreviewAddress(s.address).city).filter(Boolean)))];
+            const filteredPins = scopedPreviewStores.filter((st) => {
               const matchStatus = storeFilter === "すべて" || st.status === storeFilter;
               const matchQuery =
                 !qStore ||
                 st.name.toLowerCase().includes(qStore) ||
                 st.address.toLowerCase().includes(qStore);
-              return matchScope && matchStatus && matchQuery;
+              const parsed = parsePreviewAddress(st.address);
+              const matchPref = previewPref === "すべて" || parsed.prefecture === previewPref;
+              const matchCity = previewCity === "すべて" || parsed.city === previewCity;
+              return matchStatus && matchQuery && matchPref && matchCity;
             });
             const activeCandidates = showPlaceCandidates
               ? SAMPLE_PLACE_CANDIDATES.filter((c) => !mapStores.some((m) => m.id === c.id))
@@ -691,6 +722,33 @@ export function PublicPreviewShell() {
                   className="min-h-[42px] w-full rounded-xl border-2 border-[#D5CEC0] bg-white px-3 text-xs font-medium focus:border-[#D94E2B] focus:outline-none"
                 />
 
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    aria-label="都道府県で絞り込み"
+                    value={previewPref}
+                    onChange={(e) => {
+                      setPreviewPref(e.target.value);
+                      setPreviewCity("すべて");
+                    }}
+                    className="min-h-[38px] rounded-xl border-2 border-[#D5CEC0] bg-white px-2 text-xs font-extrabold"
+                  >
+                    {prefOpts.map((p) => (
+                      <option key={p} value={p}>{p === "すべて" ? "都道府県：すべて" : p}</option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label="市区町村で絞り込み"
+                    value={previewCity}
+                    disabled={previewPref === "すべて"}
+                    onChange={(e) => setPreviewCity(e.target.value)}
+                    className="min-h-[38px] rounded-xl border-2 border-[#D5CEC0] bg-white px-2 text-xs font-extrabold disabled:bg-[#EFEAE0] disabled:text-[#8A8377]"
+                  >
+                    {cityOpts.map((c) => (
+                      <option key={c} value={c}>{c === "すべて" ? "市区町村：すべて" : c}</option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="flex gap-1.5 overflow-x-auto pb-1">
                   {["すべて", ...PREVIEW_STORE_STATUSES].map((st) => (
                     <button
@@ -723,7 +781,7 @@ export function PublicPreviewShell() {
                       )}
                     </div>
 
-                    <div className="relative h-72 w-full overflow-hidden rounded-2xl border-2 border-[#C7BFB0] bg-[#EAE4D7]">
+                    <div className={`relative h-72 w-full overflow-hidden rounded-2xl border-2 bg-[#EAE4D7] transition-all ${previewZoomedPinId ? "border-[#D94E2B]" : "border-[#C7BFB0]"}`}>
                       <div className="absolute inset-x-0 top-1/2 h-3 -translate-y-1/2 bg-[#FBF9F4] opacity-85" />
                       <div className="absolute inset-y-0 left-[46%] w-3 bg-[#FBF9F4] opacity-85" />
                       {optimizedPreviewRoute && optimizedPreviewRoute.ordered.length >= 2 && (
@@ -802,14 +860,26 @@ export function PublicPreviewShell() {
                             )}
                             <h3 className="mt-1.5 text-base font-extrabold">{selectedPin.name}</h3>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedPinId(null)}
-                            aria-label="閉じる"
-                            className="flex h-8 w-8 items-center justify-center rounded-full bg-[#EFEAE0]"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            {!isSelectedCandidate && (
+                              <button
+                                type="button"
+                                onClick={() => setPreviewDeletingStore({ id: selectedPin.id, name: selectedPin.name })}
+                                aria-label="店舗を削除"
+                                className="flex h-8 w-8 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-700"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setSelectedPinId(null)}
+                              aria-label="閉じる"
+                              className="flex h-8 w-8 items-center justify-center rounded-full bg-[#EFEAE0]"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
                         </div>
                         <p className="mt-1.5 text-xs font-bold text-[#474239]">{selectedPin.address}</p>
                         <p className="mt-2 rounded-xl bg-[#F7F4ED] px-3 py-2 text-xs text-[#3D3932]">{selectedPin.memo}</p>
@@ -940,62 +1010,121 @@ export function PublicPreviewShell() {
                                 </ul>
                               </div>
 
-                              <div className="space-y-2 rounded-xl border-2 border-[#D94E2B]/40 bg-white p-3">
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="flex items-center gap-1.5">
-                                    <Instagram className="h-3.5 w-3.5 text-[#D94E2B]" />
-                                    <p className="text-xs font-extrabold">Instagram DM用プロンプト</p>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      if (navigator.clipboard?.writeText) {
-                                        navigator.clipboard.writeText(previewInsight.instagramDm).catch(() => {});
-                                      }
-                                      setInsightCopiedMode("dm");
-                                      notify("Instagram DM用プロンプトをコピーしました");
-                                      setTimeout(() => setInsightCopiedMode(null), 1800);
-                                    }}
-                                    className={`inline-flex min-h-[32px] items-center gap-1 rounded-lg px-2.5 text-xs font-extrabold text-white ${
-                                      insightCopiedMode === "dm" ? "bg-emerald-700" : "bg-[#D94E2B]"
-                                    }`}
-                                  >
-                                    {insightCopiedMode === "dm" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                                    <span>{insightCopiedMode === "dm" ? "コピー済み" : "DMをコピー"}</span>
-                                  </button>
-                                </div>
-                                <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed text-[#3D3932]">
-                                  {previewInsight.instagramDm}
-                                </pre>
-                              </div>
-
                               <div className="space-y-2 rounded-xl border border-[#EAE3D5] bg-white p-3">
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="flex items-center gap-1.5">
-                                    <PhoneCall className="h-3.5 w-3.5 text-[#1C1A16]" />
-                                    <p className="text-xs font-extrabold">テレアポ用プロンプト</p>
-                                  </div>
+                                <div className="grid grid-cols-3 gap-1 rounded-xl border border-[#D5CEC0] bg-[#EFEAE0] p-1">
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      if (navigator.clipboard?.writeText) {
-                                        navigator.clipboard.writeText(previewInsight.teleapoScript).catch(() => {});
-                                      }
-                                      setInsightCopiedMode("teleapo");
-                                      notify("テレアポ用プロンプトをコピーしました");
-                                      setTimeout(() => setInsightCopiedMode(null), 1800);
-                                    }}
-                                    className={`inline-flex min-h-[32px] items-center gap-1 rounded-lg px-2.5 text-xs font-extrabold text-white ${
-                                      insightCopiedMode === "teleapo" ? "bg-emerald-700" : "bg-[#1C1A16]"
+                                    onClick={() => setPreviewScriptTab("dm")}
+                                    className={`flex min-h-[32px] items-center justify-center gap-1 rounded-lg text-[11px] font-extrabold ${
+                                      previewScriptTab === "dm" ? "bg-[#D94E2B] text-white" : "text-[#474239]"
                                     }`}
                                   >
-                                    {insightCopiedMode === "teleapo" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                                    <span>{insightCopiedMode === "teleapo" ? "コピー済み" : "テレアポをコピー"}</span>
+                                    <Instagram className="h-3 w-3" />
+                                    <span>DM</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setPreviewScriptTab("email")}
+                                    className={`flex min-h-[32px] items-center justify-center gap-1 rounded-lg text-[11px] font-extrabold ${
+                                      previewScriptTab === "email" ? "bg-[#1C1A16] text-white" : "text-[#474239]"
+                                    }`}
+                                  >
+                                    <Mail className="h-3 w-3" />
+                                    <span>メール</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setPreviewScriptTab("teleapo")}
+                                    className={`flex min-h-[32px] items-center justify-center gap-1 rounded-lg text-[11px] font-extrabold ${
+                                      previewScriptTab === "teleapo" ? "bg-[#1C1A16] text-white" : "text-[#474239]"
+                                    }`}
+                                  >
+                                    <PhoneCall className="h-3 w-3" />
+                                    <span>テレアポ</span>
                                   </button>
                                 </div>
-                                <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed text-[#3D3932]">
-                                  {previewInsight.teleapoScript}
-                                </pre>
+
+                                {previewScriptTab === "dm" && (
+                                  <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                      <p className="text-xs font-extrabold">Instagram DM用スクリプト</p>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (navigator.clipboard?.writeText) navigator.clipboard.writeText(previewInsight.instagramDm).catch(() => {});
+                                          setInsightCopiedMode("dm");
+                                          notify("Instagram DMをコピーしました");
+                                          setTimeout(() => setInsightCopiedMode(null), 1800);
+                                        }}
+                                        className={`inline-flex min-h-[30px] items-center gap-1 rounded-lg px-2 text-xs font-extrabold text-white ${
+                                          insightCopiedMode === "dm" ? "bg-emerald-700" : "bg-[#D94E2B]"
+                                        }`}
+                                      >
+                                        {insightCopiedMode === "dm" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                                        <span>{insightCopiedMode === "dm" ? "コピー済み" : "コピー"}</span>
+                                      </button>
+                                    </div>
+                                    <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed text-[#3D3932]">
+                                      {previewInsight.instagramDm}
+                                    </pre>
+                                  </div>
+                                )}
+
+                                {previewScriptTab === "email" && (
+                                  <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                      <p className="text-xs font-extrabold">メール営業用スクリプト</p>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const full = `件名: ${previewInsight.emailSubject}\n\n${previewInsight.emailBody}`;
+                                          if (navigator.clipboard?.writeText) navigator.clipboard.writeText(full).catch(() => {});
+                                          setInsightCopiedMode("email");
+                                          notify("営業メールをコピーしました");
+                                          setTimeout(() => setInsightCopiedMode(null), 1800);
+                                        }}
+                                        className={`inline-flex min-h-[30px] items-center gap-1 rounded-lg px-2 text-xs font-extrabold text-white ${
+                                          insightCopiedMode === "email" ? "bg-emerald-700" : "bg-[#1C1A16]"
+                                        }`}
+                                      >
+                                        {insightCopiedMode === "email" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                                        <span>{insightCopiedMode === "email" ? "コピー済み" : "コピー"}</span>
+                                      </button>
+                                    </div>
+                                    <div className="rounded-lg bg-[#F7F4ED] px-2.5 py-1 text-xs font-extrabold">
+                                      件名：{previewInsight.emailSubject}
+                                    </div>
+                                    <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed text-[#3D3932]">
+                                      {previewInsight.emailBody}
+                                    </pre>
+                                  </div>
+                                )}
+
+                                {previewScriptTab === "teleapo" && (
+                                  <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                      <p className="text-xs font-extrabold">テレアポ用スクリプト</p>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (navigator.clipboard?.writeText) navigator.clipboard.writeText(previewInsight.teleapoScript).catch(() => {});
+                                          setInsightCopiedMode("teleapo");
+                                          notify("テレアポスクリプトをコピーしました");
+                                          setTimeout(() => setInsightCopiedMode(null), 1800);
+                                        }}
+                                        className={`inline-flex min-h-[30px] items-center gap-1 rounded-lg px-2 text-xs font-extrabold text-white ${
+                                          insightCopiedMode === "teleapo" ? "bg-emerald-700" : "bg-[#1C1A16]"
+                                        }`}
+                                      >
+                                        {insightCopiedMode === "teleapo" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                                        <span>{insightCopiedMode === "teleapo" ? "コピー済み" : "コピー"}</span>
+                                      </button>
+                                    </div>
+                                    <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed text-[#3D3932]">
+                                      {previewInsight.teleapoScript}
+                                    </pre>
+                                  </div>
+                                )}
                               </div>
                             </>
                           )}
@@ -1145,14 +1274,37 @@ export function PublicPreviewShell() {
                         </div>
                         <h3 className="mt-1.5 text-base font-extrabold">{st.name}</h3>
                         <p className="mt-1 text-xs text-[#575249]">{st.address}</p>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedListStoreId((prev) => (prev === st.id ? null : st.id))}
-                          className="mt-2.5 flex min-h-[38px] w-full items-center justify-center gap-1.5 rounded-xl border-2 border-[#D5CEC0] bg-[#FBF9F4] text-xs font-extrabold"
-                        >
-                          <Sparkles className="h-3.5 w-3.5 text-[#D94E2B]" />
-                          <span>{selectedListStoreId === st.id ? "営業情報パネルを閉じる" : "営業情報パネルを見る"}</span>
-                        </button>
+                        <div className="mt-2.5 grid grid-cols-3 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedPinId(st.id);
+                              setPreviewZoomedPinId(st.id);
+                              setStoreViewMode("map");
+                              notify(`${st.name} に地図を移動しました`);
+                            }}
+                            className="flex min-h-[38px] items-center justify-center gap-1 rounded-xl border-2 border-[#D5CEC0] bg-white text-xs font-extrabold"
+                          >
+                            <MapPin className="h-3.5 w-3.5 text-[#D94E2B]" />
+                            <span>地図</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedListStoreId((prev) => (prev === st.id ? null : st.id))}
+                            className="flex min-h-[38px] items-center justify-center gap-1 rounded-xl border-2 border-[#D5CEC0] bg-[#FBF9F4] text-xs font-extrabold"
+                          >
+                            <Sparkles className="h-3.5 w-3.5 text-[#D94E2B]" />
+                            <span>営業情報</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewDeletingStore({ id: st.id, name: st.name })}
+                            className="flex min-h-[38px] items-center justify-center gap-1 rounded-xl border border-red-200 bg-red-50 text-xs font-extrabold text-red-700"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            <span>削除</span>
+                          </button>
+                        </div>
                         {selectedListStoreId === st.id && (
                           <div className="mt-3 rounded-xl border border-[#EAE3D5] bg-[#FBF9F4] p-3 text-xs space-y-2">
                             <p className="font-extrabold text-[#1C1A16]">抽出された強み（サンプル）</p>
@@ -1243,6 +1395,39 @@ export function PublicPreviewShell() {
                   )}
                 </article>
               ))}
+            </div>
+          </div>
+        )}
+
+        {previewDeletingStore && (
+          <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="gurupo-toast-pop w-full max-w-sm space-y-4 rounded-3xl border-2 border-[#1C1A16] bg-[#FBF9F4] p-5 shadow-xl">
+              <h3 className="text-base font-extrabold">店舗を削除しますか？</h3>
+              <p className="text-xs text-[#474239]">
+                「<span className="font-extrabold text-[#1C1A16]">{previewDeletingStore.name}</span>」を削除します。この操作は取り消せません。
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPreviewDeletingStore(null)}
+                  className="min-h-[42px] rounded-xl border-2 border-[#D5CEC0] bg-white text-xs font-extrabold"
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = previewDeletingStore;
+                    setMapStores((prev) => prev.filter((m) => m.id !== target.id));
+                    if (selectedPinId === target.id) setSelectedPinId(null);
+                    setPreviewDeletingStore(null);
+                    notify(`「${target.name}」を削除しました`);
+                  }}
+                  className="min-h-[42px] rounded-xl bg-red-700 text-xs font-extrabold text-white"
+                >
+                  削除する
+                </button>
+              </div>
             </div>
           </div>
         )}

@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDocs,
   query,
@@ -168,4 +169,23 @@ export async function updateStoreStatus(
     contractDate: patch.status === "契約済み" ? patch.contractDate ?? "" : "",
     contractAmount: patch.status === "契約済み" ? patch.contractAmount ?? "" : "",
   });
+}
+
+
+export async function deleteStore(storeId: string): Promise<void> {
+  if (!db) throw new Error("データベースに接続できません。");
+  await deleteDoc(doc(db, "stores", storeId));
+}
+
+export function parseJapaneseAddress(address: string): {
+  prefecture: string;
+  city: string;
+} {
+  const clean = address.replace(/^〒?\d{3}-?\d{4}\s*/, "").trim();
+  const prefMatch = clean.match(/^(東京都|北海道|(?:京都|大阪)府|.{2,3}県)/);
+  const prefecture = prefMatch ? prefMatch[1] : "";
+  const rest = prefecture ? clean.slice(prefecture.length).trim() : clean;
+  const cityMatch = rest.match(/^([^\s\d丁目番地号]+?(?:市[^\s\d丁目番地号]+?区|郡[^\s\d丁目番地号]+?[町村]|[市区町村]))/);
+  const city = cityMatch ? cityMatch[1] : "";
+  return { prefecture, city };
 }
