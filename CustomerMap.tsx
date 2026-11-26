@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 import React, { useEffect, useRef, useState } from "react";
 import { MapPin, Phone, Navigation, X, AlertCircle, UserPlus, Check } from "lucide-react";
+import { SalesInsightPanel } from "./SalesInsightPanel";
 
 export type CustomerStatus =
   | "未接触"
@@ -130,6 +131,10 @@ export type GoogleMapsApi = {
           req: { query: string },
           cb: (results: unknown[] | null, status: string) => void
         ) => void;
+        getDetails: (
+          req: { placeId: string; fields: string[] },
+          cb: (result: unknown | null, status: string) => void
+        ) => void;
       };
     };
   };
@@ -212,6 +217,8 @@ export function CustomerMap({
   routePath = [],
   routeOrderMap,
   apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "",
+  geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY ?? "",
+  salesRepName = "",
   defaultCenter = { lat: 34.6937, lng: 135.5023 },
 }: {
   customers: CustomerPin[];
@@ -222,6 +229,8 @@ export function CustomerMap({
   routePath?: { lat: number; lng: number }[];
   routeOrderMap?: Map<string, number>;
   apiKey?: string;
+  geminiApiKey?: string;
+  salesRepName?: string;
   defaultCenter?: { lat: number; lng: number };
 }) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -500,6 +509,20 @@ export function CustomerMap({
         </article>
       )}
 
+      {selectedCustomer && (
+        <SalesInsightPanel
+          target={{
+            id: selectedCustomer.id,
+            name: selectedCustomer.name,
+            address: selectedCustomer.address ?? "",
+            placeId: selectedCustomer.placeId,
+          }}
+          mapsApiKey={apiKey}
+          geminiApiKey={geminiApiKey}
+          salesRepName={salesRepName}
+        />
+      )}
+
       {selectedCandidate && (
         <article className="gurupo-toast-pop rounded-2xl border-2 border-[#D94E2B] bg-[#FFF8F6] p-4 shadow-sm">
           <div className="flex items-start justify-between gap-2">
@@ -552,6 +575,20 @@ export function CustomerMap({
             </button>
           )}
         </article>
+      )}
+
+      {selectedCandidate && (
+        <SalesInsightPanel
+          target={{
+            id: selectedCandidate.placeId,
+            name: selectedCandidate.name,
+            address: selectedCandidate.address,
+            placeId: selectedCandidate.placeId,
+          }}
+          mapsApiKey={apiKey}
+          geminiApiKey={geminiApiKey}
+          salesRepName={salesRepName}
+        />
       )}
 
       {!selectedCustomer && !selectedCandidate && (

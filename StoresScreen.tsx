@@ -14,7 +14,9 @@ import {
   Route,
   Navigation,
   Lock,
+  Sparkles,
 } from "lucide-react";
+import { SalesInsightPanel } from "./SalesInsightPanel";
 import type { AppTab, UserProfile } from "../types/gurupo";
 import {
   CustomerMap,
@@ -66,6 +68,7 @@ export function StoresScreen({
   onNavigateTab: (tab: AppTab) => void;
 }) {
   const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "";
+  const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY ?? "";
   const isLeader = profile.role === "manager" || profile.role === "admin";
   const [stores, setStores] = useState<StoreRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,6 +80,7 @@ export function StoresScreen({
   const [statusFilter, setStatusFilter] = useState<"すべて" | CustomerStatus>("すべて");
   const [searchText, setSearchText] = useState("");
   const [toast, setToast] = useState("");
+  const [selectedListStoreId, setSelectedListStoreId] = useState<string | null>(null);
 
   // Places API 飲食店検索状態
   const [placeQuery, setPlaceQuery] = useState("");
@@ -536,6 +540,8 @@ export function StoresScreen({
             routePath={optimizedRoute?.polylinePath ?? []}
             routeOrderMap={routeOrderMap}
             apiKey={mapsApiKey}
+            geminiApiKey={geminiApiKey}
+            salesRepName={profile.name}
           />
 
           {/* 複数店舗の最適ルート作成（Routes API） */}
@@ -719,13 +725,27 @@ export function StoresScreen({
                   状況：{store.situation}
                 </p>
               )}
-              <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelectedListStoreId((prev) => (prev === store.id ? null : store.id))
+                  }
+                  className={`flex min-h-[44px] items-center justify-center gap-1 rounded-xl border-2 text-xs font-extrabold active:scale-[0.97] ${
+                    selectedListStoreId === store.id
+                      ? "border-[#D94E2B] bg-[#FFF5F2] text-[#B93818]"
+                      : "border-[#D5CEC0] bg-[#FBF9F4] text-[#1C1A16]"
+                  }`}
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-[#D94E2B]" />
+                  <span>営業情報</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => openEditor(store)}
                   className="min-h-[44px] rounded-xl border-2 border-[#1C1A16] bg-white text-xs font-extrabold text-[#1C1A16] active:scale-[0.97]"
                 >
-                  ステータス変更
+                  ステータス
                 </button>
                 <button
                   type="button"
@@ -735,6 +755,21 @@ export function StoresScreen({
                   訪問を記録
                 </button>
               </div>
+              {selectedListStoreId === store.id && (
+                <div className="mt-3">
+                  <SalesInsightPanel
+                    target={{
+                      id: store.id,
+                      name: store.name,
+                      address: store.address,
+                      placeId: store.placeId,
+                    }}
+                    mapsApiKey={mapsApiKey}
+                    geminiApiKey={geminiApiKey}
+                    salesRepName={profile.name}
+                  />
+                </div>
+              )}
             </article>
           ))}
         </div>
