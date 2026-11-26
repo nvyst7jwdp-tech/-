@@ -1,0 +1,17 @@
+name: Fix Preview Candidate Genre
+on: push
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sed -i 's/status: "キック", address:/status: "キック", genre: "和食", address:/g' src/components/PublicPreviewShell.tsx
+          rm -f .github/workflows/unzip.yml
+          git config user.name "actions-user"
+          git config user.email "actions@github.com"
+          git add -A
+          git commit -m "Add genre to preview candidates" || true
+          git push
