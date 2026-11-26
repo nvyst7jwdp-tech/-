@@ -20,6 +20,7 @@ type PlacesResultRaw = {
   formatted_address?: string;
   vicinity?: string;
   rating?: number;
+  types?: string[];
   geometry?: {
     location?: {
       lat: () => number;
@@ -28,9 +29,50 @@ type PlacesResultRaw = {
   };
 };
 
-function mapPlacesResults(results: unknown[] | null): PlaceCandidatePin[] {
+export function calcDistanceMeters(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const R = 6371000;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
+function inferGenreFromRaw(
+  selectedGenre: RestaurantGenre,
+  name: string,
+  types?: string[]
+): string {
+  if (selectedGenre !== "すべて") return selectedGenre;
+  const lowerName = name.toLowerCase();
+  const typeSet = new Set(types ?? []);
+  if (typeSet.has("cafe") || /カフェ|cafe|coffee|珈琲|喫茶/.test(lowerName)) return "カフェ";
+  if (/焼肉|ホルモン|カルビ/.test(lowerName)) return "焼肉";
+  if (typeSet.has("bar") || /居酒屋|酒場|焼鳥|焼き鳥|バル/.test(lowerName)) return "居酒屋";
+  if (/ラーメン|らーめん|中華そば|麺/.test(lowerName)) return "ラーメン";
+  if (/イタリアン|パスタ|ピザ|pizza|trattoria|osteria/.test(lowerName)) return "イタリアン";
+  if (/和食|寿司|すし|蕎麦|そば|うどん|天ぷら|割烹/.test(lowerName)) return "和食";
+  if (typeSet.has("bakery") || /スイーツ|ケーキ|パフェ|洋菓子|ベーカリー/.test(lowerName)) return "スイーツ";
+  return "その他";
+}
+
+function mapPlacesResults(
+  results: unknown[] | null,
+  selectedGenre: RestaurantGenre,
+  refCenter?: { lat: number; lng: number } | null
+): PlaceCandidatePin[] {
   if (!Array.isArray(results)) return [];
-  const list: PlaceCandidatePin[] = [];
+  const rawList: PlaceCandidatePin[] = [];
   for (const item of results) {
     const r = item as PlacesResultRaw;
     const lat = r.geometry?.location?.lat?.();
@@ -38,16 +80,34 @@ function mapPlacesResults(results: unknown[] | null): PlaceCandidatePin[] {
     if (!r.place_id || !r.name || typeof lat !== "number" || typeof lng !== "number") {
       continue;
     }
-    list.push({
+    rawList.push({
       placeId: r.place_id,
       name: r.name,
       address: r.formatted_address || r.vicinity || "",
       lat,
       lng,
       rating: typeof r.rating === "number" ? r.rating : undefined,
+      genre: inferGenreFromRaw(selectedGenre, r.name, r.types),
     });
   }
-  return list.slice(0, 15);
+
+  const anchor =
+    refCenter ??
+    (rawList.length > 0 ? { lat: rawList[0].lat, lng: rawList[0].lng } : null);
+
+  if (anchor) {
+    rawList.forEach((item) => {
+      item.distanceMeters = calcDistanceMeters(
+        anchor.lat,
+        anchor.lng,
+        item.lat,
+        item.lng
+      );
+    });
+    rawList.sort((a, b) => (a.distanceMeters ?? 0) - (b.distanceMeters ?? 0));
+  }
+
+  return rawList;
 }
 
 export async function searchRestaurantsNearby(
@@ -71,7 +131,7 @@ export async function searchRestaurantsNearby(
     keyword?: string;
   } = {
     location: { lat, lng },
-    radius: 800,
+    radius: 1200,
     type: genre === "カフェ" ? "cafe" : "restaurant",
   };
   if (genre !== "すべて") {
@@ -81,7 +141,7 @@ export async function searchRestaurantsNearby(
   return new Promise((resolve, reject) => {
     service.nearbySearch(req, (results, status) => {
       if (status === "OK") {
-        resolve(mapPlacesResults(results));
+        resolve(mapPlacesResults(results, genre, { lat, lng }));
       } else if (status === "ZERO_RESULTS") {
         resolve([]);
       } else {
@@ -113,7 +173,7 @@ export async function searchRestaurantsByPlaceText(
       },
       (results, status) => {
         if (status === "OK") {
-          resolve(mapPlacesResults(results));
+          resolve(mapPlacesResults(results, genre, null));
         } else if (status === "ZERO_RESULTS") {
           resolve([]);
         } else {

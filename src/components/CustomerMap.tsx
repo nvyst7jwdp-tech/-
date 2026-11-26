@@ -36,6 +36,8 @@ export interface PlaceCandidatePin {
   lng: number;
   phone?: string;
   rating?: number;
+  distanceMeters?: number;
+  genre?: string;
 }
 
 const STATUS_STYLE: Record<
@@ -199,9 +201,12 @@ export function CustomerMap({
   onRegisterCandidate,
   registeringPlaceId,
   focusTarget,
+  focusCandidateTarget,
   onRequestDelete,
   canDeleteCustomer,
   showLegend = true,
+  mapHeightClass = "h-80",
+  showEmptyHint = true,
   apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "",
   geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY ?? "",
   salesRepName = "",
@@ -217,9 +222,12 @@ export function CustomerMap({
   ) => void;
   registeringPlaceId?: string | null;
   focusTarget?: { id: string; lat: number; lng: number; nonce: number } | null;
+  focusCandidateTarget?: { placeId: string; lat: number; lng: number; nonce: number } | null;
   onRequestDelete?: (customer: CustomerPin) => void;
   canDeleteCustomer?: (customer: CustomerPin) => boolean;
   showLegend?: boolean;
+  mapHeightClass?: string;
+  showEmptyHint?: boolean;
   apiKey?: string;
   geminiApiKey?: string;
   salesRepName?: string;
@@ -385,6 +393,17 @@ export function CustomerMap({
     }
   }, [focusTarget, mapReady]);
 
+  useEffect(() => {
+    if (!focusCandidateTarget) return;
+    setCandError("");
+    setSelectedKey({ kind: "candidate", id: focusCandidateTarget.placeId });
+    const map = mapInstanceRef.current;
+    if (mapReady && map) {
+      map.setCenter({ lat: focusCandidateTarget.lat, lng: focusCandidateTarget.lng });
+      map.setZoom(17);
+    }
+  }, [focusCandidateTarget, mapReady]);
+
   return (
     <div className="space-y-3">
       {showLegend && (
@@ -407,7 +426,7 @@ export function CustomerMap({
         </div>
       )}
 
-      <div className="relative h-80 w-full overflow-hidden rounded-2xl border-2 border-[#D5CEC0] bg-[#EFEAE0]">
+      <div className={`relative ${mapHeightClass} w-full overflow-hidden rounded-2xl border-2 border-[#D5CEC0] bg-[#EFEAE0]`}>
         {mapError ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 p-5 text-center">
             <AlertCircle className="h-6 w-6 text-[#D94E2B]" />
@@ -670,7 +689,7 @@ export function CustomerMap({
         />
       )}
 
-      {!selectedCustomer && !selectedCandidate && (
+      {showEmptyHint && !selectedCustomer && !selectedCandidate && (
         <p className="rounded-2xl border-2 border-[#D5CEC0] bg-white px-4 py-3 text-center text-xs font-bold text-[#575249]">
           地図上のピンをタップすると、詳細と営業情報が表示されます。
         </p>

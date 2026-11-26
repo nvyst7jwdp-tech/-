@@ -40,6 +40,21 @@ import {
 } from "../services/placesService";
 import { SalesInsightPanel } from "./SalesInsightPanel";
 
+function formatDistanceLabel(meters?: number): string {
+  if (typeof meters !== "number" || !Number.isFinite(meters)) return "";
+  if (meters < 1000) return `${meters}m`;
+  return `${(meters / 1000).toFixed(1)}km`;
+}
+
+function resolveStoreGenre(store: StoreRecord): string {
+  if (store.genre && store.genre.trim()) return store.genre.trim();
+  const text = `${store.name} ${store.situation}`.toLowerCase();
+  for (const g of RESTAURANT_GENRES) {
+    if (g !== "すべて" && text.includes(g.toLowerCase())) return g;
+  }
+  return "その他";
+}
+
 export function StoresScreen({
   profile,
   onNavigateTab,
@@ -68,6 +83,8 @@ export function StoresScreen({
   const effectiveScope: "mine" | "team" = isLeader ? scopeFilter : "mine";
   const [customerViewMode, setCustomerViewMode] = useState<"map" | "list">("map");
   const [statusFilter, setStatusFilter] = useState<"すべて" | CustomerStatus>("すべて");
+  const [customerGenreFilter, setCustomerGenreFilter] =
+    useState<RestaurantGenre>("すべて");
   const [searchText, setSearchText] = useState("");
   const [prefFilter, setPrefFilter] = useState("すべて");
   const [cityFilter, setCityFilter] = useState("すべて");
@@ -79,14 +96,20 @@ export function StoresScreen({
     nonce: number;
   } | null>(null);
 
-  // 店舗（周辺検索候補）セクション状態
+  // 店舗（周辺検索候補）セクション状態：地図と候補リストを同一画面に統合
   const [placeQuery, setPlaceQuery] = useState("");
   const [selectedGenre, setSelectedGenre] = useState<RestaurantGenre>("すべて");
   const [searchingPlaces, setSearchingPlaces] = useState(false);
   const [placeError, setPlaceError] = useState("");
   const [candidates, setCandidates] = useState<PlaceCandidatePin[]>([]);
-  const [prospectViewMode, setProspectViewMode] = useState<"list" | "map">("list");
   const [prospectFilterText, setProspectFilterText] = useState("");
+  const [activeCandidateId, setActiveCandidateId] = useState<string | null>(null);
+  const [focusCandidateTarget, setFocusCandidateTarget] = useState<{
+    placeId: string;
+    lat: number;
+    lng: number;
+    nonce: number;
+  } | null>(null);
   const [expandedCandidateIds, setExpandedCandidateIds] = useState<Record<string, boolean>>({});
   const [candidateStatusMap, setCandidateStatusMap] = useState<
     Record<string, CustomerStatus>
@@ -172,18 +195,22 @@ export function StoresScreen({
     return ["すべて", ...Array.from(set)];
   }, [scopedStores, prefFilter]);
 
+  // 獲得順（createdAt 降順）を維持しつつ、ジャンル・ステータス・地域・キーワードで絞り込み
   const filteredCustomers = useMemo(() => {
     const q = searchText.trim().toLowerCase();
     return scopedStores.filter((s) => {
       const matchStatus = statusFilter === "すべて" || s.status === statusFilter;
+      const matchGenre =
+        customerGenreFilter === "すべて" ||
+        resolveStoreGenre(s) === customerGenreFilter;
       const matchQuery =
         !q || s.name.toLowerCase().includes(q) || s.address.toLowerCase().includes(q);
       const parsed = parseJapaneseAddress(s.address);
       const matchPref = prefFilter === "すべて" || parsed.prefecture === prefFilter;
       const matchCity = cityFilter === "すべて" || parsed.city === cityFilter;
-      return matchStatus && matchQuery && matchPref && matchCity;
+      return matchStatus && matchGenre && matchQuery && matchPref && matchCity;
     });
-  }, [scopedStores, statusFilter, searchText, prefFilter, cityFilter]);
+  }, [scopedStores, statusFilter, customerGenreFilter, searchText, prefFilter, cityFilter]);
 
   const customerMapPins: CustomerPin[] = useMemo(() => {
     return filteredCustomers
@@ -205,7 +232,7 @@ export function StoresScreen({
       }));
   }, [filteredCustomers, profile.uid, userNameMap]);
 
-  // 未登録の店舗候補（独立フィルタ）
+  // 未登録の店舗候補（距離優先順を維持して絞り込み）
   const unregisteredCandidates = useMemo(() => {
     const q = prospectFilterText.trim().toLowerCase();
     return candidates.filter((c) => {
@@ -232,6 +259,16 @@ export function StoresScreen({
     setCustomerViewMode("map");
   };
 
+  const handleSelectCandidateOnList = (cand: PlaceCandidatePin) => {
+    setActiveCandidateId(cand.placeId);
+    setFocusCandidateTarget({
+      placeId: cand.placeId,
+      lat: cand.lat,
+      lng: cand.lng,
+      nonce: Date.now(),
+    });
+  };
+
   const handleSearchCurrentLocation = () => {
     if (!navigator.geolocation) {
       setPlaceError("お使いの端末では現在地を取得できません。場所名で検索してください。");
@@ -249,6 +286,7 @@ export function StoresScreen({
             selectedGenre
           );
           setCandidates(list);
+          setActiveCandidateId(list[0]?.placeId ?? null);
           setSectionTab("prospects");
           const genreLabel = selectedGenre === "すべて" ? "飲食店" : selectedGenre;
           showToast(`周辺の${genreLabel}を${list.length}件見つけました`);
@@ -278,6 +316,7 @@ export function StoresScreen({
         selectedGenre
       );
       setCandidates(list);
+      setActiveCandidateId(list[0]?.placeId ?? null);
       setSectionTab("prospects");
       const genreLabel = selectedGenre === "すべて" ? "飲食店" : selectedGenre;
       showToast(`「${placeQuery.trim()}」周辺の${genreLabel}を${list.length}件見つけました`);
@@ -304,19 +343,20 @@ export function StoresScreen({
     setCandidateErrorMap((prev) => ({ ...prev, [candidate.placeId]: "" }));
     setRegisteringPlaceId(candidate.placeId);
     try {
-      const genreMemo =
-        selectedGenre !== "すべて" ? `（${selectedGenre}検索）` : "";
+      const resolvedGenre =
+        candidate.genre || (selectedGenre !== "すべて" ? selectedGenre : "その他");
       const created = await createStore(
         profile,
         {
           name: candidate.name,
           address: candidate.address,
           phone: candidate.phone ?? "",
-          situation: `周辺検索から「${chosenStatus}」で登録${genreMemo}`,
+          situation: `周辺検索から「${chosenStatus}」で登録（${resolvedGenre}）`,
           status: chosenStatus,
           lat: candidate.lat,
           lng: candidate.lng,
           placeId: candidate.placeId,
+          genre: resolvedGenre,
           appointmentDate: appointment?.date,
           appointmentTime: appointment?.time,
         },
@@ -551,6 +591,24 @@ export function StoresScreen({
             </select>
           </div>
 
+          {/* 顧客のジャンル別絞り込み（表示順は獲得順のまま） */}
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
+            {RESTAURANT_GENRES.map((genre) => (
+              <button
+                key={genre}
+                type="button"
+                onClick={() => setCustomerGenreFilter(genre)}
+                className={`min-h-[34px] shrink-0 rounded-full border-2 px-3 text-[11px] font-extrabold transition-transform duration-100 active:scale-[0.97] ${
+                  customerGenreFilter === genre
+                    ? "border-[#D94E2B] bg-[#D94E2B] text-white"
+                    : "border-[#D5CEC0] bg-[#FBF9F4] text-[#3D3932]"
+                }`}
+              >
+                {genre === "すべて" ? "ジャンル：すべて" : genre}
+              </button>
+            ))}
+          </div>
+
           {/* ステータス絞り込み（4ステータスのみ） */}
           <div className="flex gap-1.5 overflow-x-auto pb-1">
             {(["すべて", ...STORE_STATUS_LIST] as const).map((st) => (
@@ -597,9 +655,14 @@ export function StoresScreen({
               {filteredCustomers.map((store) => (
                 <article key={store.id} className="rounded-2xl border-2 border-[#D5CEC0] bg-white p-4">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="rounded-md border border-[#D5CEC0] bg-[#F7F4ED] px-2 py-0.5 text-xs font-extrabold">
-                      {store.status}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="rounded-md border border-[#D5CEC0] bg-[#F7F4ED] px-2 py-0.5 text-xs font-extrabold">
+                        {store.status}
+                      </span>
+                      <span className="rounded-md bg-[#EFEAE0] px-2 py-0.5 text-[11px] font-bold text-[#474239]">
+                        {resolveStoreGenre(store)}
+                      </span>
+                    </div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold text-[#575249]">
                         登録者：{resolveOwnerName(store)}
@@ -700,7 +763,7 @@ export function StoresScreen({
         </div>
       )}
 
-      {/* ==================== 店舗（周辺検索の未登録候補）セクション ==================== */}
+      {/* ==================== 店舗（周辺検索の未登録候補：地図＋ボトムシート統合UI） ==================== */}
       {sectionTab === "prospects" && (
         <div className="space-y-3.5">
           {/* Places API 周辺飲食店検索パネル（ジャンル絞り込み対応） */}
@@ -712,7 +775,10 @@ export function StoresScreen({
               {candidates.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => setCandidates([])}
+                  onClick={() => {
+                    setCandidates([]);
+                    setActiveCandidateId(null);
+                  }}
                   className="text-[11px] font-bold text-[#575249] underline"
                 >
                   候補をクリア
@@ -776,220 +842,231 @@ export function StoresScreen({
             )}
           </section>
 
-          {/* 店舗候補の独立絞り込み＋一覧/地図切替 */}
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#575249]" />
-              <input
-                type="text"
-                value={prospectFilterText}
-                onChange={(e) => setProspectFilterText(e.target.value)}
-                placeholder="検索候補を店名・住所で絞り込み"
-                className="min-h-[42px] w-full rounded-xl border-2 border-[#D5CEC0] bg-white pl-9 pr-3 text-xs font-medium focus:border-[#D94E2B] focus:outline-none"
-              />
-            </div>
-            <div className="flex rounded-xl border-2 border-[#D5CEC0] bg-[#EFEAE0] p-0.5 text-xs font-extrabold">
-              <button
-                type="button"
-                onClick={() => setProspectViewMode("list")}
-                className={`min-h-[38px] rounded-lg px-3 ${
-                  prospectViewMode === "list" ? "bg-[#1C1A16] text-white" : "text-[#474239]"
-                }`}
-              >
-                一覧
-              </button>
-              <button
-                type="button"
-                onClick={() => setProspectViewMode("map")}
-                className={`min-h-[38px] rounded-lg px-3 ${
-                  prospectViewMode === "map" ? "bg-[#1C1A16] text-white" : "text-[#474239]"
-                }`}
-              >
-                地図
-              </button>
-            </div>
-          </div>
-
-          {prospectViewMode === "map" ? (
+          {/* マップ（上部）＋ Google Maps風ボトムシート（下部候補リスト・距離順・全件） */}
+          <div className="space-y-0">
             <CustomerMap
               customers={[]}
               candidates={unregisteredCandidates}
               registeredPlaceIds={registeredPlaceIds}
+              focusCandidateTarget={focusCandidateTarget}
               onRegisterCandidate={(cand, chosenStatus, appt) =>
                 void handleRegisterCandidate(cand, chosenStatus, appt)
               }
               registeringPlaceId={registeringPlaceId}
               showLegend={false}
+              showEmptyHint={false}
+              mapHeightClass="h-64"
               apiKey={mapsApiKey}
               geminiApiKey={geminiApiKey}
               salesRepName={profile.name}
             />
-          ) : unregisteredCandidates.length === 0 ? (
-            <div className="rounded-2xl border-2 border-[#D5CEC0] bg-white p-5 text-center text-xs font-bold text-[#575249]">
-              上の検索から周辺の店舗を探すと、ここに未登録の店舗候補が一覧表示されます。
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {unregisteredCandidates.map((cand) => {
-                const chosenStatus = candidateStatusMap[cand.placeId] ?? "キック";
-                const appt = candidateApptMap[cand.placeId] ?? { date: "", time: "" };
-                const candErr = candidateErrorMap[cand.placeId] ?? "";
-                const isExpanded = Boolean(expandedCandidateIds[cand.placeId]);
-                return (
-                  <article
-                    key={cand.placeId}
-                    className="space-y-2.5 rounded-2xl border-2 border-[#D5CEC0] bg-white p-4"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="inline-block rounded-md bg-orange-600 px-2 py-0.5 text-[11px] font-extrabold text-white">
-                          未登録店舗
-                        </span>
-                        {cand.rating && (
-                          <span className="text-xs font-bold text-[#575249]">
-                            ★ {cand.rating}
-                          </span>
-                        )}
-                      </div>
-                      <h2 className="mt-1.5 text-base font-extrabold text-[#1C1A16]">
-                        {cand.name}
-                      </h2>
-                      <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-[#575249]">
-                        <MapPin className="h-3.5 w-3.5 shrink-0 text-[#D94E2B]" />
-                        <span>{cand.address}</span>
-                      </p>
-                    </div>
 
-                    {/* 4ステータス選択＋アポ獲得時日時必須 */}
-                    <div className="space-y-2">
-                      <div className="grid grid-cols-4 gap-1.5">
-                        {STORE_STATUS_LIST.map((st) => (
-                          <button
-                            key={st}
-                            type="button"
-                            onClick={() => {
-                              setCandidateStatusMap((prev) => ({
-                                ...prev,
-                                [cand.placeId]: st,
-                              }));
-                              setCandidateErrorMap((prev) => ({
-                                ...prev,
-                                [cand.placeId]: "",
-                              }));
-                            }}
-                            className={`min-h-[34px] rounded-lg border-2 px-1 text-[11px] font-extrabold active:scale-[0.97] ${
-                              chosenStatus === st
-                                ? "border-[#1C1A16] bg-[#1C1A16] text-white"
-                                : "border-[#D5CEC0] bg-[#FBF9F4] text-[#3D3932]"
-                            }`}
-                          >
-                            {st}
-                          </button>
-                        ))}
-                      </div>
+            {/* 地図にぴったり連動するボトムシート風候補リスト */}
+            <section
+              aria-label="周辺検索候補リスト"
+              className="relative -mt-2 rounded-t-3xl border-2 border-[#1C1A16] bg-[#FBF9F4] p-3.5 shadow-lg"
+            >
+              <div className="mx-auto mb-2.5 h-1.5 w-12 rounded-full bg-[#C7BFB0]" />
 
-                      {chosenStatus === "アポ獲得" && (
-                        <div className="space-y-1">
-                          <p className="text-[11px] font-extrabold text-blue-900">
-                            アポ日時（必須）
-                          </p>
-                          <div className="grid grid-cols-2 gap-1.5">
-                            <input
-                              type="date"
-                              aria-label={`${cand.name}のアポ日付`}
-                              value={appt.date}
-                              onChange={(e) => {
-                                setCandidateApptMap((prev) => ({
-                                  ...prev,
-                                  [cand.placeId]: { ...appt, date: e.target.value },
-                                }));
-                                setCandidateErrorMap((prev) => ({
-                                  ...prev,
-                                  [cand.placeId]: "",
-                                }));
-                              }}
-                              className="min-h-[38px] rounded-lg border-2 border-[#1C1A16] bg-white px-2 text-xs font-bold"
-                            />
-                            <input
-                              type="time"
-                              aria-label={`${cand.name}のアポ時間`}
-                              value={appt.time}
-                              onChange={(e) => {
-                                setCandidateApptMap((prev) => ({
-                                  ...prev,
-                                  [cand.placeId]: { ...appt, time: e.target.value },
-                                }));
-                                setCandidateErrorMap((prev) => ({
-                                  ...prev,
-                                  [cand.placeId]: "",
-                                }));
-                              }}
-                              className="min-h-[38px] rounded-lg border-2 border-[#1C1A16] bg-white px-2 text-xs font-bold"
-                            />
-                          </div>
-                        </div>
-                      )}
+              <div className="mb-2.5 flex items-center justify-between gap-2">
+                <p className="text-xs font-extrabold text-[#1C1A16]">
+                  周辺候補 {unregisteredCandidates.length}件（近い順）
+                </p>
+                <div className="relative w-44">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#575249]" />
+                  <input
+                    type="text"
+                    value={prospectFilterText}
+                    onChange={(e) => setProspectFilterText(e.target.value)}
+                    placeholder="候補を絞り込み"
+                    className="min-h-[34px] w-full rounded-lg border border-[#D5CEC0] bg-white pl-8 pr-2 text-xs font-medium focus:border-[#D94E2B] focus:outline-none"
+                  />
+                </div>
+              </div>
 
-                      {candErr && (
-                        <p className="text-xs font-extrabold text-red-900">{candErr}</p>
-                      )}
+              {unregisteredCandidates.length === 0 ? (
+                <p className="rounded-2xl border border-[#D5CEC0] bg-white p-4 text-center text-xs font-bold text-[#575249]">
+                  上の検索を実行すると、近い順に店舗リストが表示されます。
+                </p>
+              ) : (
+                <div className="max-h-[48vh] space-y-2.5 overflow-y-auto pr-0.5">
+                  {unregisteredCandidates.map((cand, idx) => {
+                    const chosenStatus = candidateStatusMap[cand.placeId] ?? "キック";
+                    const appt = candidateApptMap[cand.placeId] ?? { date: "", time: "" };
+                    const candErr = candidateErrorMap[cand.placeId] ?? "";
+                    const isExpanded = Boolean(expandedCandidateIds[cand.placeId]);
+                    const isActive = activeCandidateId === cand.placeId;
+                    const distLabel = formatDistanceLabel(cand.distanceMeters);
 
-                      <button
-                        type="button"
-                        disabled={registeringPlaceId === cand.placeId}
-                        onClick={() =>
-                          void handleRegisterCandidate(cand, chosenStatus, appt)
-                        }
-                        className="flex min-h-[42px] w-full items-center justify-center gap-1.5 rounded-xl bg-[#D94E2B] px-3 text-xs font-extrabold text-white active:scale-[0.97] disabled:opacity-60"
+                    return (
+                      <article
+                        key={cand.placeId}
+                        className={`space-y-2 rounded-2xl border-2 bg-white p-3 transition-colors ${
+                          isActive ? "border-[#D94E2B] bg-[#FFFDFC]" : "border-[#D5CEC0]"
+                        }`}
                       >
-                        <UserPlus className="h-4 w-4" />
-                        <span>
-                          {registeringPlaceId === cand.placeId
-                            ? "登録中..."
-                            : `「${chosenStatus}」で顧客登録`}
-                        </span>
-                      </button>
-                    </div>
+                        {/* 店舗名タップで地図移動＆ピン強調 */}
+                        <button
+                          type="button"
+                          onClick={() => handleSelectCandidateOnList(cand)}
+                          className="w-full text-left"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-600 px-1.5 text-[10px] font-extrabold text-white">
+                                {idx + 1}
+                              </span>
+                              {distLabel && (
+                                <span className="rounded-md bg-[#F7F4ED] px-1.5 py-0.5 text-[11px] font-extrabold text-[#B93818]">
+                                  {distLabel}
+                                </span>
+                              )}
+                              {cand.genre && (
+                                <span className="rounded-md bg-[#EFEAE0] px-1.5 py-0.5 text-[10px] font-bold text-[#474239]">
+                                  {cand.genre}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[11px] font-bold text-[#575249]">
+                              {cand.rating ? `★ ${cand.rating} ・ ` : ""}地図で強調
+                            </span>
+                          </div>
+                          <h2 className="mt-1 text-sm font-extrabold text-[#1C1A16]">
+                            {cand.name}
+                          </h2>
+                          <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-[#575249]">
+                            <MapPin className="h-3 w-3 shrink-0 text-[#D94E2B]" />
+                            <span className="truncate">{cand.address}</span>
+                          </p>
+                        </button>
 
-                    {/* ∨ アイコンでその場に営業情報パネルを展開表示 */}
-                    <button
-                      type="button"
-                      aria-expanded={isExpanded}
-                      onClick={() =>
-                        setExpandedCandidateIds((prev) => ({
-                          ...prev,
-                          [cand.placeId]: !prev[cand.placeId],
-                        }))
-                      }
-                      className="flex min-h-[36px] w-full items-center justify-center gap-1.5 rounded-xl border border-[#D5CEC0] bg-[#FBF9F4] text-xs font-extrabold text-[#474239] active:scale-[0.98]"
-                    >
-                      <span>{isExpanded ? "営業情報を閉じる" : "営業情報・スクリプトを見る"}</span>
-                      {isExpanded ? (
-                        <ChevronUp className="h-4 w-4" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4" />
-                      )}
-                    </button>
+                        {/* 4ステータス選択＋アポ獲得時日時必須 */}
+                        <div className="space-y-1.5">
+                          <div className="grid grid-cols-4 gap-1">
+                            {STORE_STATUS_LIST.map((st) => (
+                              <button
+                                key={st}
+                                type="button"
+                                onClick={() => {
+                                  setCandidateStatusMap((prev) => ({
+                                    ...prev,
+                                    [cand.placeId]: st,
+                                  }));
+                                  setCandidateErrorMap((prev) => ({
+                                    ...prev,
+                                    [cand.placeId]: "",
+                                  }));
+                                }}
+                                className={`min-h-[32px] rounded-lg border-2 px-1 text-[11px] font-extrabold active:scale-[0.97] ${
+                                  chosenStatus === st
+                                    ? "border-[#1C1A16] bg-[#1C1A16] text-white"
+                                    : "border-[#D5CEC0] bg-[#FBF9F4] text-[#3D3932]"
+                                }`}
+                              >
+                                {st}
+                              </button>
+                            ))}
+                          </div>
 
-                    {isExpanded && (
-                      <SalesInsightPanel
-                        key={`cand-list-${cand.placeId}`}
-                        target={{
-                          id: cand.placeId,
-                          name: cand.name,
-                          address: cand.address,
-                          placeId: cand.placeId,
-                        }}
-                        mapsApiKey={mapsApiKey}
-                        geminiApiKey={geminiApiKey}
-                        salesRepName={profile.name}
-                      />
-                    )}
-                  </article>
-                );
-              })}
-            </div>
-          )}
+                          {chosenStatus === "アポ獲得" && (
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <input
+                                type="date"
+                                aria-label={`${cand.name}のアポ日付`}
+                                value={appt.date}
+                                onChange={(e) => {
+                                  setCandidateApptMap((prev) => ({
+                                    ...prev,
+                                    [cand.placeId]: { ...appt, date: e.target.value },
+                                  }));
+                                  setCandidateErrorMap((prev) => ({
+                                    ...prev,
+                                    [cand.placeId]: "",
+                                  }));
+                                }}
+                                className="min-h-[36px] rounded-lg border-2 border-[#1C1A16] bg-white px-2 text-xs font-bold"
+                              />
+                              <input
+                                type="time"
+                                aria-label={`${cand.name}のアポ時間`}
+                                value={appt.time}
+                                onChange={(e) => {
+                                  setCandidateApptMap((prev) => ({
+                                    ...prev,
+                                    [cand.placeId]: { ...appt, time: e.target.value },
+                                  }));
+                                  setCandidateErrorMap((prev) => ({
+                                    ...prev,
+                                    [cand.placeId]: "",
+                                  }));
+                                }}
+                                className="min-h-[36px] rounded-lg border-2 border-[#1C1A16] bg-white px-2 text-xs font-bold"
+                              />
+                            </div>
+                          )}
+
+                          {candErr && (
+                            <p className="text-xs font-extrabold text-red-900">{candErr}</p>
+                          )}
+
+                          <button
+                            type="button"
+                            disabled={registeringPlaceId === cand.placeId}
+                            onClick={() =>
+                              void handleRegisterCandidate(cand, chosenStatus, appt)
+                            }
+                            className="flex min-h-[38px] w-full items-center justify-center gap-1.5 rounded-xl bg-[#D94E2B] px-3 text-xs font-extrabold text-white active:scale-[0.97] disabled:opacity-60"
+                          >
+                            <UserPlus className="h-3.5 w-3.5" />
+                            <span>
+                              {registeringPlaceId === cand.placeId
+                                ? "登録中..."
+                                : `「${chosenStatus}」で顧客登録`}
+                            </span>
+                          </button>
+                        </div>
+
+                        {/* ∨ アイコンでその場に営業情報パネルを展開表示 */}
+                        <button
+                          type="button"
+                          aria-expanded={isExpanded}
+                          onClick={() =>
+                            setExpandedCandidateIds((prev) => ({
+                              ...prev,
+                              [cand.placeId]: !prev[cand.placeId],
+                            }))
+                          }
+                          className="flex min-h-[32px] w-full items-center justify-center gap-1 rounded-xl border border-[#D5CEC0] bg-[#FBF9F4] text-xs font-extrabold text-[#474239] active:scale-[0.98]"
+                        >
+                          <span>{isExpanded ? "閉じる" : "営業情報・スクリプト"}</span>
+                          {isExpanded ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                        </button>
+
+                        {isExpanded && (
+                          <SalesInsightPanel
+                            key={`cand-list-${cand.placeId}`}
+                            target={{
+                              id: cand.placeId,
+                              name: cand.name,
+                              address: cand.address,
+                              placeId: cand.placeId,
+                            }}
+                            mapsApiKey={mapsApiKey}
+                            geminiApiKey={geminiApiKey}
+                            salesRepName={profile.name}
+                          />
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          </div>
         </div>
       )}
 

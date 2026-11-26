@@ -22,6 +22,7 @@ export interface StoreRecord {
   lat: number | null;
   lng: number | null;
   placeId?: string;
+  genre?: string;
   ownerUid: string;
   ownerName: string;
   appointmentDate?: string;
@@ -106,6 +107,7 @@ export async function fetchStores(profile: UserProfile): Promise<StoreRecord[]> 
         lat: typeof data.lat === "number" ? data.lat : null,
         lng: typeof data.lng === "number" ? data.lng : null,
         placeId: typeof data.placeId === "string" ? data.placeId : undefined,
+        genre: typeof data.genre === "string" ? data.genre : "",
         ownerUid: String(data.ownerUid ?? ""),
         ownerName: String(data.ownerName ?? ""),
         appointmentDate:
@@ -131,6 +133,7 @@ export async function createStore(
     lat?: number | null;
     lng?: number | null;
     placeId?: string;
+    genre?: string;
     appointmentDate?: string;
     appointmentTime?: string;
     contractDate?: string;
@@ -155,6 +158,7 @@ export async function createStore(
     lat,
     lng,
     placeId: input.placeId ?? "",
+    genre: input.genre ?? "",
     ownerUid: profile.uid,
     ownerName: profile.name,
     appointmentDate:

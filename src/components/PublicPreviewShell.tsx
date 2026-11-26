@@ -71,10 +71,10 @@ const SAMPLE_TEAM_MEMBERS_KPI = [
 ];
 
 const SAMPLE_MAP_STORES = [
-  { id: "map-1", name: "サンプル店舗A", status: "アポ獲得", address: "大阪府大阪市中央区1-2-3", phone: "000-0101-0001", memo: "次回対応日を4日超過", x: 28, y: 34, ownerUid: "u-satou", ownerName: "佐藤 健太" },
-  { id: "map-2", name: "サンプル食堂B", status: "キック", address: "大阪府大阪市北区2-8-10", phone: "000-0101-0002", memo: "新規アプローチ候補", x: 68, y: 28, ownerUid: "u-satou", ownerName: "佐藤 健太" },
-  { id: "map-3", name: "サンプル手打ちそばE", status: "契約済み", address: "福岡県筑紫野市天拝坂4-1-9", phone: "000-0101-0004", memo: "年間プラン契約完了", x: 74, y: 66, ownerUid: "u-tanaka", ownerName: "田中 翔" },
-  { id: "map-4", name: "サンプルカフェF", status: "掲載のみ", address: "福岡県福岡市博多区3-4-5", phone: "000-0101-0005", memo: "掲載プラン比較資料を送付済み", x: 38, y: 72, ownerUid: "u-yamada", ownerName: "山田 陽子" },
+  { id: "map-1", name: "サンプル店舗A", status: "アポ獲得", genre: "居酒屋", address: "大阪府大阪市中央区1-2-3", phone: "000-0101-0001", memo: "次回対応日を4日超過", x: 28, y: 34, ownerUid: "u-satou", ownerName: "佐藤 健太" },
+  { id: "map-2", name: "サンプル食堂B", status: "キック", genre: "和食", address: "大阪府大阪市北区2-8-10", phone: "000-0101-0002", memo: "新規アプローチ候補", x: 68, y: 28, ownerUid: "u-satou", ownerName: "佐藤 健太" },
+  { id: "map-3", name: "サンプル手打ちそばE", status: "契約済み", genre: "和食", address: "福岡県筑紫野市天拝坂4-1-9", phone: "000-0101-0004", memo: "年間プラン契約完了", x: 74, y: 66, ownerUid: "u-tanaka", ownerName: "田中 翔" },
+  { id: "map-4", name: "サンプルカフェF", status: "掲載のみ", genre: "カフェ", address: "福岡県福岡市博多区3-4-5", phone: "000-0101-0005", memo: "掲載プラン比較資料を送付済み", x: 38, y: 72, ownerUid: "u-yamada", ownerName: "山田 陽子" },
 ];
 
 const SAMPLE_PLACE_CANDIDATES = [
