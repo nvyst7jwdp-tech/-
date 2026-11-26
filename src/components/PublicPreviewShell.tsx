@@ -15,6 +15,7 @@ import {
   X,
   Bell,
   ChevronRight,
+  ChevronLeft,
   LocateFixed,
   UserPlus,
   Check,
@@ -180,6 +181,8 @@ export function PublicPreviewShell() {
   const [rolePreview, setRolePreview] = useState("member");
   const [activeTab, setActiveTab] = useState("today");
   const [sortMode, setSortMode] = useState("distance");
+  const [previewDayOffset, setPreviewDayOffset] = useState(0);
+  const [previewChartMode, setPreviewChartMode] = useState<"weekly" | "monthly">("weekly");
   const [announcements, setAnnouncements] = useState(INITIAL_ANNOUNCEMENTS);
   const [showAnnouncementList, setShowAnnouncementList] = useState(false);
   const [phoneModalStore, setPhoneModalStore] = useState<{ name: string; phone: string } | null>(null);
@@ -340,7 +343,154 @@ export function PublicPreviewShell() {
         <main className="flex-1 px-4 pb-28 pt-4">
           {activeTab === "today" && (
             <div className="space-y-5">
-              <h1 className="text-xl font-extrabold text-[#1C1A16]">ホーム</h1>
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <h1 className="text-xl font-extrabold text-[#1C1A16]">ホーム</h1>
+                  {previewDayOffset !== 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewDayOffset(0)}
+                      className="rounded-lg border border-[#D94E2B] bg-[#FFF5F2] px-2.5 py-1 text-[11px] font-extrabold text-[#B93818]"
+                    >
+                      今日に戻る
+                    </button>
+                  )}
+                </div>
+                {(() => {
+                  const base = new Date();
+                  base.setDate(base.getDate() + previewDayOffset);
+                  const wdays = ["日", "月", "火", "水", "木", "金", "土"];
+                  const label = `${base.getMonth() + 1}月${base.getDate()}日（${wdays[base.getDay()]}）`;
+                  const dayKick = Math.max(0, (isLeader ? 5 : 2) + (previewDayOffset % 3));
+                  const dayAppt = Math.max(0, (isLeader ? 3 : 1) + ((previewDayOffset + 1) % 2));
+                  const dayList = isLeader ? 2 : 1;
+                  const dayContract = previewDayOffset === 0 ? (isLeader ? 2 : 1) : 0;
+                  const pts = previewChartMode === "weekly"
+                    ? [
+                        { label: "10/19", kick: 6, appt: 3, con: 1 },
+                        { label: "10/26", kick: 8, appt: 4, con: 2 },
+                        { label: "11/2", kick: 7, appt: 5, con: 2 },
+                        { label: "11/9", kick: 10, appt: 6, con: 3 },
+                        { label: "11/16", kick: 9, appt: 5, con: 2 },
+                        { label: "11/23", kick: 12, appt: 7, con: 4 },
+                      ]
+                    : [
+                        { label: "6月", kick: 18, appt: 8, con: 3 },
+                        { label: "7月", kick: 22, appt: 10, con: 4 },
+                        { label: "8月", kick: 20, appt: 11, con: 5 },
+                        { label: "9月", kick: 26, appt: 13, con: 6 },
+                        { label: "10月", kick: 29, appt: 15, con: 7 },
+                        { label: "11月", kick: 34, appt: 18, con: 9 },
+                      ];
+                  const maxV = Math.max(...pts.flatMap((pt) => [pt.kick, pt.appt, pt.con]));
+                  const gx = (i: number) => 24 + (i / (pts.length - 1)) * 280;
+                  const gy = (v: number) => 14 + 98 - (v / maxV) * 98;
+                  const pathFor = (vals: number[]) => vals.map((v, i) => `${i === 0 ? "M" : "L"}${gx(i).toFixed(1)},${gy(v).toFixed(1)}`).join(" ");
+                  return (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between rounded-2xl border-2 border-[#1C1A16] bg-white px-2 py-1.5">
+                        <button
+                          type="button"
+                          aria-label="前日へ"
+                          onClick={() => setPreviewDayOffset((v) => v - 1)}
+                          className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#EFEAE0]"
+                        >
+                          <ChevronLeft className="h-5 w-5" />
+                        </button>
+                        <div className="flex items-center gap-2">
+                          <span className="text-base font-extrabold">{label}</span>
+                          {previewDayOffset === 0 && (
+                            <span className="rounded-md bg-[#D94E2B] px-1.5 py-0.5 text-[10px] font-extrabold text-white">今日</span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          aria-label="翌日へ"
+                          onClick={() => setPreviewDayOffset((v) => v + 1)}
+                          className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#EFEAE0]"
+                        >
+                          <ChevronRight className="h-5 w-5" />
+                        </button>
+                      </div>
+
+                      <div className="rounded-2xl border-2 border-[#1C1A16] bg-[#1C1A16] p-4 text-white">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-extrabold">{label} の実績</p>
+                          <span className="rounded-md bg-[#D94E2B] px-2 py-0.5 text-[11px] font-extrabold">当日</span>
+                        </div>
+                        <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+                          <div className="rounded-xl bg-white/10 py-2">
+                            <p className="text-[10px] text-stone-300">キック</p>
+                            <p className="text-lg font-extrabold tabular-nums">{dayKick}</p>
+                          </div>
+                          <div className="rounded-xl bg-[#2563EB]/35 py-2">
+                            <p className="text-[10px] text-blue-200">アポ獲得</p>
+                            <p className="text-lg font-extrabold tabular-nums">{dayAppt}</p>
+                          </div>
+                          <div className="rounded-xl bg-white/10 py-2">
+                            <p className="text-[10px] text-stone-300">掲載のみ</p>
+                            <p className="text-lg font-extrabold tabular-nums">{dayList}</p>
+                          </div>
+                          <div className="rounded-xl bg-emerald-600/35 py-2">
+                            <p className="text-[10px] text-emerald-200">契約済み</p>
+                            <p className="text-lg font-extrabold tabular-nums">{dayContract}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div className="rounded-2xl border-2 border-[#D5CEC0] bg-white p-3">
+                          <p className="text-xs font-extrabold">週間トータル</p>
+                          <p className="mt-1 text-xs font-bold text-[#474239] tabular-nums">
+                            キック {isLeader ? 12 : 4} ・ アポ {isLeader ? 7 : 3} ・ 契約 {isLeader ? 4 : 1}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border-2 border-[#D5CEC0] bg-white p-3">
+                          <p className="text-xs font-extrabold">月間トータル</p>
+                          <p className="mt-1 text-xs font-bold text-[#474239] tabular-nums">
+                            キック {isLeader ? 34 : 11} ・ アポ {isLeader ? 18 : 6} ・ 契約 {isLeader ? 9 : 3}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 rounded-2xl border-2 border-[#D5CEC0] bg-white p-3.5">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-extrabold">KPI推移（折れ線グラフ）</p>
+                          <div className="inline-flex rounded-xl border border-[#D5CEC0] bg-[#EFEAE0] p-0.5 text-[10px] font-extrabold">
+                            <button
+                              type="button"
+                              onClick={() => setPreviewChartMode("weekly")}
+                              className={`rounded-lg px-2 py-1 ${previewChartMode === "weekly" ? "bg-[#1C1A16] text-white" : ""}`}
+                            >
+                              1週間おき
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPreviewChartMode("monthly")}
+                              className={`rounded-lg px-2 py-1 ${previewChartMode === "monthly" ? "bg-[#1C1A16] text-white" : ""}`}
+                            >
+                              1ヶ月おき
+                            </button>
+                          </div>
+                        </div>
+                        <svg viewBox="0 0 320 135" className="h-36 w-full">
+                          <path d={pathFor(pts.map((x) => x.kick))} fill="none" stroke="#D94E2B" strokeWidth="2.2" />
+                          <path d={pathFor(pts.map((x) => x.appt))} fill="none" stroke="#2563EB" strokeWidth="2.2" />
+                          <path d={pathFor(pts.map((x) => x.con))} fill="none" stroke="#059669" strokeWidth="2.2" />
+                          {pts.map((pt, i) => (
+                            <g key={pt.label}>
+                              <circle cx={gx(i)} cy={gy(pt.kick)} r="3.2" fill="#D94E2B" />
+                              <circle cx={gx(i)} cy={gy(pt.appt)} r="3.2" fill="#2563EB" />
+                              <circle cx={gx(i)} cy={gy(pt.con)} r="3.2" fill="#059669" />
+                              <text x={gx(i)} y="128" textAnchor="middle" fontSize="9" fill="#575249">{pt.label}</text>
+                            </g>
+                          ))}
+                        </svg>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
 
               <button
                 type="button"
