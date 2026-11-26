@@ -56,7 +56,7 @@ service cloud.firestore {
 
     // 店舗・予定・訪問記録（メンバーは本人分のみ、マネージャー・管理者は全体閲覧可）
     match /stores/{storeId} {
-      allow read: if isActiveApproved() && (isLeader() || resource.data.ownerUid == request.auth.uid);
+      allow read: if isActiveApproved() && (isLeader() || resource.data.ownerUid == request.auth.uid || resource.data.interviewerUid == request.auth.uid);
       allow create: if isActiveApproved() && (isLeader() || request.resource.data.ownerUid == request.auth.uid);
       allow update: if isActiveApproved() && (isLeader() || resource.data.ownerUid == request.auth.uid);
       allow delete: if isActiveApproved() && (isLeader() || resource.data.ownerUid == request.auth.uid);
