@@ -103,31 +103,40 @@ ${salesRepName || "ぐるポ営業担当"}
   "emailBody": "本文"
 }`;
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(
-      key
-    )}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.4,
-          responseMimeType: "application/json",
-        },
-      }),
-    }
-  );
-
-  const json = (await res.json()) as {
+  const modelsToTry = ["gemini-3.8-flash", "gemini-2.5-flash"];
+  let json: {
     error?: { message?: string };
     candidates?: {
       content?: { parts?: { text?: string }[] };
     }[];
-  };
+  } = {};
+  let succeeded = false;
 
-  if (!res.ok) {
+  for (const model of modelsToTry) {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
+        key
+      )}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.4,
+            responseMimeType: "application/json",
+          },
+        }),
+      }
+    );
+    json = (await res.json()) as typeof json;
+    if (res.ok) {
+      succeeded = true;
+      break;
+    }
+  }
+
+  if (!succeeded) {
     throw new Error(json.error?.message || "Gemini API での分析に失敗しました。");
   }
 
