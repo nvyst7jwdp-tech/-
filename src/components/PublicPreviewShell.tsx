@@ -209,6 +209,7 @@ export function PublicPreviewShell() {
   const [candApptDate, setCandApptDate] = useState("");
   const [candApptTime, setCandApptTime] = useState("");
   const [candApptErr, setCandApptErr] = useState("");
+  const [candInterviewer, setCandInterviewer] = useState("佐藤 健太");
 
   const isLeader = rolePreview === "manager" || rolePreview === "admin";
   const unreadCount = announcements.filter((a) => !a.read).length;
@@ -917,21 +918,35 @@ export function PublicPreviewShell() {
                               ))}
                             </div>
                             {candidateRegStatus === "アポ獲得" && (
-                              <div className="grid grid-cols-2 gap-1.5">
-                                <input
-                                  type="date"
-                                  aria-label="アポ日付"
-                                  value={candApptDate}
-                                  onChange={(e) => { setCandApptDate(e.target.value); setCandApptErr(""); }}
-                                  className="min-h-[36px] rounded-lg border-2 border-[#1C1A16] bg-white px-2 text-xs font-bold"
-                                />
-                                <input
-                                  type="time"
-                                  aria-label="アポ時間"
-                                  value={candApptTime}
-                                  onChange={(e) => { setCandApptTime(e.target.value); setCandApptErr(""); }}
-                                  className="min-h-[36px] rounded-lg border-2 border-[#1C1A16] bg-white px-2 text-xs font-bold"
-                                />
+                              <div className="space-y-1.5">
+                                <div className="grid grid-cols-2 gap-1.5">
+                                  <input
+                                    type="date"
+                                    aria-label="アポ日付"
+                                    value={candApptDate}
+                                    onChange={(e) => { setCandApptDate(e.target.value); setCandApptErr(""); }}
+                                    className="min-h-[36px] rounded-lg border-2 border-[#1C1A16] bg-white px-2 text-xs font-bold"
+                                  />
+                                  <input
+                                    type="time"
+                                    aria-label="アポ時間"
+                                    value={candApptTime}
+                                    onChange={(e) => { setCandApptTime(e.target.value); setCandApptErr(""); }}
+                                    className="min-h-[36px] rounded-lg border-2 border-[#1C1A16] bg-white px-2 text-xs font-bold"
+                                  />
+                                </div>
+                                <select
+                                  aria-label="取材担当"
+                                  value={candInterviewer}
+                                  onChange={(e) => setCandInterviewer(e.target.value)}
+                                  className="min-h-[36px] w-full rounded-lg border-2 border-[#D5CEC0] bg-white px-2 text-xs font-bold"
+                                >
+                                  {SAMPLE_TEAM_MEMBERS_KPI.map((m) => (
+                                    <option key={m.id} value={m.name}>
+                                      取材担当：{m.name}
+                                    </option>
+                                  ))}
+                                </select>
                               </div>
                             )}
                             {candApptErr && <p className="text-xs font-extrabold text-red-900">{candApptErr}</p>}

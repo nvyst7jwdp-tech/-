@@ -27,6 +27,8 @@ export interface StoreRecord {
   ownerName: string;
   appointmentDate?: string;
   appointmentTime?: string;
+  interviewerUid?: string;
+  interviewerName?: string;
   contractDate?: string;
   createdAt: string;
 }
@@ -40,26 +42,40 @@ export function normalizeStoreStatus(raw: unknown): CustomerStatus {
   return "キック";
 }
 
-export async function fetchUserNameMap(profile: UserProfile): Promise<Map<string, string>> {
+export interface TeamMemberOption {
+  uid: string;
+  name: string;
+}
+
+export async function fetchTeamMembers(profile: UserProfile): Promise<TeamMemberOption[]> {
   const map = new Map<string, string>();
   if (profile.uid && profile.name) {
     map.set(profile.uid, profile.name);
   }
-  if (!db) return map;
-  if (profile.role !== "manager" && profile.role !== "admin") {
-    return map;
+  if (db) {
+    try {
+      const snap = await getDocs(collection(db, "users"));
+      snap.docs.forEach((d) => {
+        const data = d.data();
+        const name = String(data.name ?? "").trim();
+        const active = data.active !== false;
+        const approved = data.approved !== false;
+        if (name && active && approved) {
+          map.set(d.id, name);
+        }
+      });
+    } catch {
+      // 権限不足時は自分のみフォールバック
+    }
   }
-  try {
-    const snap = await getDocs(collection(db, "users"));
-    snap.docs.forEach((d) => {
-      const data = d.data();
-      const name = String(data.name ?? "").trim();
-      if (name) map.set(d.id, name);
-    });
-  } catch {
-    // 権限不足時はフォールバック
-  }
-  return map;
+  return Array.from(map.entries())
+    .map(([uid, name]) => ({ uid, name }))
+    .sort((a, b) => (a.uid === profile.uid ? -1 : b.uid === profile.uid ? 1 : a.name.localeCompare(b.name, "ja")));
+}
+
+export async function fetchUserNameMap(profile: UserProfile): Promise<Map<string, string>> {
+  const members = await fetchTeamMembers(profile);
+  return new Map(members.map((m) => [m.uid, m.name]));
 }
 
 export async function geocodeAddress(
@@ -114,6 +130,10 @@ export async function fetchStores(profile: UserProfile): Promise<StoreRecord[]> 
           typeof data.appointmentDate === "string" ? data.appointmentDate : "",
         appointmentTime:
           typeof data.appointmentTime === "string" ? data.appointmentTime : "",
+        interviewerUid:
+          typeof data.interviewerUid === "string" ? data.interviewerUid : "",
+        interviewerName:
+          typeof data.interviewerName === "string" ? data.interviewerName : "",
         contractDate:
           typeof data.contractDate === "string" ? data.contractDate : "",
         createdAt: String(data.createdAt ?? ""),
@@ -136,6 +156,8 @@ export async function createStore(
     genre?: string;
     appointmentDate?: string;
     appointmentTime?: string;
+    interviewerUid?: string;
+    interviewerName?: string;
     contractDate?: string;
   },
   mapsApiKey: string
@@ -165,6 +187,10 @@ export async function createStore(
       input.status === "アポ獲得" ? input.appointmentDate ?? "" : "",
     appointmentTime:
       input.status === "アポ獲得" ? input.appointmentTime ?? "" : "",
+    interviewerUid:
+      input.status === "アポ獲得" ? input.interviewerUid ?? profile.uid : "",
+    interviewerName:
+      input.status === "アポ獲得" ? input.interviewerName ?? profile.name : "",
     contractDate:
       input.status === "契約済み" ? input.contractDate ?? "" : "",
     createdAt,
@@ -179,6 +205,8 @@ export async function updateStoreStatus(
     status: CustomerStatus;
     appointmentDate?: string;
     appointmentTime?: string;
+    interviewerUid?: string;
+    interviewerName?: string;
     contractDate?: string;
   }
 ): Promise<void> {
@@ -189,6 +217,10 @@ export async function updateStoreStatus(
       patch.status === "アポ獲得" ? patch.appointmentDate ?? "" : "",
     appointmentTime:
       patch.status === "アポ獲得" ? patch.appointmentTime ?? "" : "",
+    interviewerUid:
+      patch.status === "アポ獲得" ? patch.interviewerUid ?? "" : "",
+    interviewerName:
+      patch.status === "アポ獲得" ? patch.interviewerName ?? "" : "",
     contractDate:
       patch.status === "契約済み" ? patch.contractDate ?? "" : "",
   });

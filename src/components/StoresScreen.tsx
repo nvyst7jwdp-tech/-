@@ -27,10 +27,11 @@ import {
   createStore,
   deleteStore,
   fetchStores,
-  fetchUserNameMap,
+  fetchTeamMembers,
   parseJapaneseAddress,
   updateStoreStatus,
   type StoreRecord,
+  type TeamMemberOption,
 } from "../services/storesService";
 import {
   RESTAURANT_GENRES,
@@ -44,15 +45,6 @@ function formatDistanceLabel(meters?: number): string {
   if (typeof meters !== "number" || !Number.isFinite(meters)) return "";
   if (meters < 1000) return `${meters}m`;
   return `${(meters / 1000).toFixed(1)}km`;
-}
-
-function resolveStoreGenre(store: StoreRecord): string {
-  if (store.genre && store.genre.trim()) return store.genre.trim();
-  const text = `${store.name} ${store.situation}`.toLowerCase();
-  for (const g of RESTAURANT_GENRES) {
-    if (g !== "すべて" && text.includes(g.toLowerCase())) return g;
-  }
-  return "その他";
 }
 
 export function StoresScreen({
@@ -70,8 +62,12 @@ export function StoresScreen({
   const [sectionTab, setSectionTab] = useState<"customers" | "prospects">("customers");
 
   const [stores, setStores] = useState<StoreRecord[]>([]);
-  const [userNameMap, setUserNameMap] = useState<Map<string, string>>(
-    () => new Map([[profile.uid, profile.name]])
+  const [teamMembers, setTeamMembers] = useState<TeamMemberOption[]>(() => [
+    { uid: profile.uid, name: profile.name },
+  ]);
+  const userNameMap = useMemo(
+    () => new Map(teamMembers.map((m) => [m.uid, m.name])),
+    [teamMembers]
   );
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
@@ -83,8 +79,6 @@ export function StoresScreen({
   const effectiveScope: "mine" | "team" = isLeader ? scopeFilter : "mine";
   const [customerViewMode, setCustomerViewMode] = useState<"map" | "list">("map");
   const [statusFilter, setStatusFilter] = useState<"すべて" | CustomerStatus>("すべて");
-  const [customerGenreFilter, setCustomerGenreFilter] =
-    useState<RestaurantGenre>("すべて");
   const [searchText, setSearchText] = useState("");
   const [prefFilter, setPrefFilter] = useState("すべて");
   const [cityFilter, setCityFilter] = useState("すべて");
@@ -115,7 +109,7 @@ export function StoresScreen({
     Record<string, CustomerStatus>
   >({});
   const [candidateApptMap, setCandidateApptMap] = useState<
-    Record<string, { date: string; time: string }>
+    Record<string, { date: string; time: string; interviewerUid?: string }>
   >({});
   const [candidateErrorMap, setCandidateErrorMap] = useState<Record<string, string>>({});
   const [registeringPlaceId, setRegisteringPlaceId] = useState<string | null>(null);
@@ -131,6 +125,7 @@ export function StoresScreen({
   const [editStatus, setEditStatus] = useState<CustomerStatus>("キック");
   const [editApptDate, setEditApptDate] = useState("");
   const [editApptTime, setEditApptTime] = useState("");
+  const [editInterviewerUid, setEditInterviewerUid] = useState(profile.uid);
   const [editContractDate, setEditContractDate] = useState("");
   const [editError, setEditError] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
@@ -143,11 +138,11 @@ export function StoresScreen({
   useEffect(() => {
     let active = true;
     setLoading(true);
-    Promise.all([fetchStores(profile), fetchUserNameMap(profile)])
-      .then(([list, nameMap]) => {
+    Promise.all([fetchStores(profile), fetchTeamMembers(profile)])
+      .then(([list, members]) => {
         if (!active) return;
         setStores(list);
-        setUserNameMap(nameMap);
+        setTeamMembers(members);
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -195,22 +190,19 @@ export function StoresScreen({
     return ["すべて", ...Array.from(set)];
   }, [scopedStores, prefFilter]);
 
-  // 獲得順（createdAt 降順）を維持しつつ、ジャンル・ステータス・地域・キーワードで絞り込み
+  // 獲得順（createdAt 降順）を維持しつつ、ステータス・地域・キーワードで絞り込み
   const filteredCustomers = useMemo(() => {
     const q = searchText.trim().toLowerCase();
     return scopedStores.filter((s) => {
       const matchStatus = statusFilter === "すべて" || s.status === statusFilter;
-      const matchGenre =
-        customerGenreFilter === "すべて" ||
-        resolveStoreGenre(s) === customerGenreFilter;
       const matchQuery =
         !q || s.name.toLowerCase().includes(q) || s.address.toLowerCase().includes(q);
       const parsed = parseJapaneseAddress(s.address);
       const matchPref = prefFilter === "すべて" || parsed.prefecture === prefFilter;
       const matchCity = cityFilter === "すべて" || parsed.city === cityFilter;
-      return matchStatus && matchGenre && matchQuery && matchPref && matchCity;
+      return matchStatus && matchQuery && matchPref && matchCity;
     });
-  }, [scopedStores, statusFilter, customerGenreFilter, searchText, prefFilter, cityFilter]);
+  }, [scopedStores, statusFilter, searchText, prefFilter, cityFilter]);
 
   const customerMapPins: CustomerPin[] = useMemo(() => {
     return filteredCustomers
@@ -229,6 +221,7 @@ export function StoresScreen({
         ownerName: resolveOwnerName(s),
         appointmentDate: s.appointmentDate,
         appointmentTime: s.appointmentTime,
+        interviewerName: s.interviewerUid ? userNameMap.get(s.interviewerUid) || s.interviewerName : s.interviewerName,
       }));
   }, [filteredCustomers, profile.uid, userNameMap]);
 
@@ -330,7 +323,12 @@ export function StoresScreen({
   const handleRegisterCandidate = async (
     candidate: PlaceCandidatePin,
     chosenStatus: CustomerStatus,
-    appointment?: { date: string; time: string }
+    appointment?: {
+      date: string;
+      time: string;
+      interviewerUid?: string;
+      interviewerName?: string;
+    }
   ) => {
     if (registeredPlaceIds.has(candidate.placeId)) return;
     if (chosenStatus === "アポ獲得" && (!appointment?.date || !appointment?.time)) {
@@ -359,6 +357,11 @@ export function StoresScreen({
           genre: resolvedGenre,
           appointmentDate: appointment?.date,
           appointmentTime: appointment?.time,
+          interviewerUid: appointment?.interviewerUid || profile.uid,
+          interviewerName:
+            appointment?.interviewerName ||
+            userNameMap.get(appointment?.interviewerUid || profile.uid) ||
+            profile.name,
         },
         mapsApiKey
       );
@@ -392,6 +395,7 @@ export function StoresScreen({
     setEditStatus(store.status);
     setEditApptDate(store.appointmentDate || "");
     setEditApptTime(store.appointmentTime || "");
+    setEditInterviewerUid(store.interviewerUid || profile.uid);
     setEditContractDate(store.contractDate || new Date().toISOString().slice(0, 10));
     setEditError("");
   };
@@ -408,11 +412,15 @@ export function StoresScreen({
       return;
     }
     setSavingEdit(true);
+    const interviewerUid = editInterviewerUid || profile.uid;
+    const interviewerName = userNameMap.get(interviewerUid) || profile.name;
     try {
       await updateStoreStatus(editingStore.id, {
         status: editStatus,
         appointmentDate: editApptDate,
         appointmentTime: editApptTime,
+        interviewerUid,
+        interviewerName,
         contractDate: editContractDate,
       });
       setStores((prev) =>
@@ -423,6 +431,8 @@ export function StoresScreen({
                 status: editStatus,
                 appointmentDate: editStatus === "アポ獲得" ? editApptDate : "",
                 appointmentTime: editStatus === "アポ獲得" ? editApptTime : "",
+                interviewerUid: editStatus === "アポ獲得" ? interviewerUid : "",
+                interviewerName: editStatus === "アポ獲得" ? interviewerName : "",
                 contractDate: editStatus === "契約済み" ? editContractDate : "",
               }
             : s
@@ -591,24 +601,6 @@ export function StoresScreen({
             </select>
           </div>
 
-          {/* 顧客のジャンル別絞り込み（表示順は獲得順のまま） */}
-          <div className="flex gap-1.5 overflow-x-auto pb-1">
-            {RESTAURANT_GENRES.map((genre) => (
-              <button
-                key={genre}
-                type="button"
-                onClick={() => setCustomerGenreFilter(genre)}
-                className={`min-h-[34px] shrink-0 rounded-full border-2 px-3 text-[11px] font-extrabold transition-transform duration-100 active:scale-[0.97] ${
-                  customerGenreFilter === genre
-                    ? "border-[#D94E2B] bg-[#D94E2B] text-white"
-                    : "border-[#D5CEC0] bg-[#FBF9F4] text-[#3D3932]"
-                }`}
-              >
-                {genre === "すべて" ? "ジャンル：すべて" : genre}
-              </button>
-            ))}
-          </div>
-
           {/* ステータス絞り込み（4ステータスのみ） */}
           <div className="flex gap-1.5 overflow-x-auto pb-1">
             {(["すべて", ...STORE_STATUS_LIST] as const).map((st) => (
@@ -655,14 +647,9 @@ export function StoresScreen({
               {filteredCustomers.map((store) => (
                 <article key={store.id} className="rounded-2xl border-2 border-[#D5CEC0] bg-white p-4">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="rounded-md border border-[#D5CEC0] bg-[#F7F4ED] px-2 py-0.5 text-xs font-extrabold">
-                        {store.status}
-                      </span>
-                      <span className="rounded-md bg-[#EFEAE0] px-2 py-0.5 text-[11px] font-bold text-[#474239]">
-                        {resolveStoreGenre(store)}
-                      </span>
-                    </div>
+                    <span className="rounded-md border border-[#D5CEC0] bg-[#F7F4ED] px-2 py-0.5 text-xs font-extrabold">
+                      {store.status}
+                    </span>
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold text-[#575249]">
                         登録者：{resolveOwnerName(store)}
@@ -683,13 +670,26 @@ export function StoresScreen({
                   </div>
                   <h2 className="mt-1.5 text-base font-extrabold text-[#1C1A16]">{store.name}</h2>
                   {store.status === "アポ獲得" &&
-                    (store.appointmentDate || store.appointmentTime) && (
-                      <p className="mt-1 flex items-center gap-1 text-xs font-extrabold text-blue-900">
-                        <Calendar className="h-3.5 w-3.5 shrink-0" />
-                        <span>
-                          アポ日時：{store.appointmentDate} {store.appointmentTime}
-                        </span>
-                      </p>
+                    (store.appointmentDate ||
+                      store.appointmentTime ||
+                      store.interviewerName) && (
+                      <div className="mt-1 space-y-0.5 text-xs font-extrabold text-blue-900">
+                        {(store.appointmentDate || store.appointmentTime) && (
+                          <p className="flex items-center gap-1">
+                            <Calendar className="h-3.5 w-3.5 shrink-0" />
+                            <span>
+                              アポ日時：{store.appointmentDate} {store.appointmentTime}
+                            </span>
+                          </p>
+                        )}
+                        {(store.interviewerUid || store.interviewerName) && (
+                          <p className="pl-4.5 text-[11px]">
+                            取材担当：
+                            {(store.interviewerUid && userNameMap.get(store.interviewerUid)) ||
+                              store.interviewerName}
+                          </p>
+                        )}
+                      </div>
                     )}
                   {store.address && (
                     <p className="mt-1 flex items-center gap-1 text-xs font-medium text-[#474239]">
@@ -849,6 +849,8 @@ export function StoresScreen({
               candidates={unregisteredCandidates}
               registeredPlaceIds={registeredPlaceIds}
               focusCandidateTarget={focusCandidateTarget}
+              teamMembers={teamMembers}
+              defaultInterviewerUid={profile.uid}
               onRegisterCandidate={(cand, chosenStatus, appt) =>
                 void handleRegisterCandidate(cand, chosenStatus, appt)
               }
@@ -969,39 +971,61 @@ export function StoresScreen({
                           </div>
 
                           {chosenStatus === "アポ獲得" && (
-                            <div className="grid grid-cols-2 gap-1.5">
-                              <input
-                                type="date"
-                                aria-label={`${cand.name}のアポ日付`}
-                                value={appt.date}
-                                onChange={(e) => {
+                            <div className="space-y-1.5">
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <input
+                                  type="date"
+                                  aria-label={`${cand.name}のアポ日付`}
+                                  value={appt.date}
+                                  onChange={(e) => {
+                                    setCandidateApptMap((prev) => ({
+                                      ...prev,
+                                      [cand.placeId]: { ...appt, date: e.target.value },
+                                    }));
+                                    setCandidateErrorMap((prev) => ({
+                                      ...prev,
+                                      [cand.placeId]: "",
+                                    }));
+                                  }}
+                                  className="min-h-[36px] rounded-lg border-2 border-[#1C1A16] bg-white px-2 text-xs font-bold"
+                                />
+                                <input
+                                  type="time"
+                                  aria-label={`${cand.name}のアポ時間`}
+                                  value={appt.time}
+                                  onChange={(e) => {
+                                    setCandidateApptMap((prev) => ({
+                                      ...prev,
+                                      [cand.placeId]: { ...appt, time: e.target.value },
+                                    }));
+                                    setCandidateErrorMap((prev) => ({
+                                      ...prev,
+                                      [cand.placeId]: "",
+                                    }));
+                                  }}
+                                  className="min-h-[36px] rounded-lg border-2 border-[#1C1A16] bg-white px-2 text-xs font-bold"
+                                />
+                              </div>
+                              <select
+                                aria-label={`${cand.name}の取材担当`}
+                                value={appt.interviewerUid || profile.uid}
+                                onChange={(e) =>
                                   setCandidateApptMap((prev) => ({
                                     ...prev,
-                                    [cand.placeId]: { ...appt, date: e.target.value },
-                                  }));
-                                  setCandidateErrorMap((prev) => ({
-                                    ...prev,
-                                    [cand.placeId]: "",
-                                  }));
-                                }}
-                                className="min-h-[36px] rounded-lg border-2 border-[#1C1A16] bg-white px-2 text-xs font-bold"
-                              />
-                              <input
-                                type="time"
-                                aria-label={`${cand.name}のアポ時間`}
-                                value={appt.time}
-                                onChange={(e) => {
-                                  setCandidateApptMap((prev) => ({
-                                    ...prev,
-                                    [cand.placeId]: { ...appt, time: e.target.value },
-                                  }));
-                                  setCandidateErrorMap((prev) => ({
-                                    ...prev,
-                                    [cand.placeId]: "",
-                                  }));
-                                }}
-                                className="min-h-[36px] rounded-lg border-2 border-[#1C1A16] bg-white px-2 text-xs font-bold"
-                              />
+                                    [cand.placeId]: {
+                                      ...appt,
+                                      interviewerUid: e.target.value,
+                                    },
+                                  }))
+                                }
+                                className="min-h-[36px] w-full rounded-lg border-2 border-[#D5CEC0] bg-white px-2 text-xs font-bold"
+                              >
+                                {teamMembers.map((m) => (
+                                  <option key={m.uid} value={m.uid}>
+                                    取材担当：{m.name}
+                                  </option>
+                                ))}
+                              </select>
                             </div>
                           )}
 
@@ -1012,9 +1036,15 @@ export function StoresScreen({
                           <button
                             type="button"
                             disabled={registeringPlaceId === cand.placeId}
-                            onClick={() =>
-                              void handleRegisterCandidate(cand, chosenStatus, appt)
-                            }
+                            onClick={() => {
+                              const ivUid = appt.interviewerUid || profile.uid;
+                              void handleRegisterCandidate(cand, chosenStatus, {
+                                date: appt.date,
+                                time: appt.time,
+                                interviewerUid: ivUid,
+                                interviewerName: userNameMap.get(ivUid) || profile.name,
+                              });
+                            }}
                             className="flex min-h-[38px] w-full items-center justify-center gap-1.5 rounded-xl bg-[#D94E2B] px-3 text-xs font-extrabold text-white active:scale-[0.97] disabled:opacity-60"
                           >
                             <UserPlus className="h-3.5 w-3.5" />
@@ -1111,9 +1141,9 @@ export function StoresScreen({
               ))}
             </div>
             {editStatus === "アポ獲得" && (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <p className="text-xs font-extrabold text-blue-900">
-                  アポ獲得日時（日付・時間とも必須）
+                  アポ獲得日時（必須）＆ 取材担当
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   <input
@@ -1137,6 +1167,18 @@ export function StoresScreen({
                     className="min-h-[46px] w-full rounded-xl border-2 border-[#1C1A16] bg-white px-2 text-sm font-bold"
                   />
                 </div>
+                <select
+                  aria-label="取材担当"
+                  value={editInterviewerUid}
+                  onChange={(e) => setEditInterviewerUid(e.target.value)}
+                  className="min-h-[44px] w-full rounded-xl border-2 border-[#D5CEC0] bg-white px-3 text-sm font-bold"
+                >
+                  {teamMembers.map((m) => (
+                    <option key={m.uid} value={m.uid}>
+                      取材担当：{m.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
             {editStatus === "契約済み" && (

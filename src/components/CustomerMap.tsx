@@ -26,6 +26,7 @@ export interface CustomerPin {
   ownerName?: string;
   appointmentDate?: string;
   appointmentTime?: string;
+  interviewerName?: string;
 }
 
 export interface PlaceCandidatePin {
@@ -204,6 +205,8 @@ export function CustomerMap({
   focusCandidateTarget,
   onRequestDelete,
   canDeleteCustomer,
+  teamMembers = [],
+  defaultInterviewerUid = "",
   showLegend = true,
   mapHeightClass = "h-80",
   showEmptyHint = true,
@@ -218,8 +221,15 @@ export function CustomerMap({
   onRegisterCandidate?: (
     candidate: PlaceCandidatePin,
     status: CustomerStatus,
-    appointment?: { date: string; time: string }
+    appointment?: {
+      date: string;
+      time: string;
+      interviewerUid: string;
+      interviewerName: string;
+    }
   ) => void;
+  teamMembers?: { uid: string; name: string }[];
+  defaultInterviewerUid?: string;
   registeringPlaceId?: string | null;
   focusTarget?: { id: string; lat: number; lng: number; nonce: number } | null;
   focusCandidateTarget?: { placeId: string; lat: number; lng: number; nonce: number } | null;
@@ -256,7 +266,14 @@ export function CustomerMap({
   const [candidateStatus, setCandidateStatus] = useState<CustomerStatus>("キック");
   const [candApptDate, setCandApptDate] = useState("");
   const [candApptTime, setCandApptTime] = useState("");
+  const [candInterviewerUid, setCandInterviewerUid] = useState(defaultInterviewerUid);
   const [candError, setCandError] = useState("");
+
+  useEffect(() => {
+    if (defaultInterviewerUid && !candInterviewerUid) {
+      setCandInterviewerUid(defaultInterviewerUid);
+    }
+  }, [defaultInterviewerUid, candInterviewerUid]);
 
   const selectedCustomer =
     selectedKey?.kind === "customer"
@@ -482,13 +499,24 @@ export function CustomerMap({
           </div>
 
           {selectedCustomer.status === "アポ獲得" &&
-            (selectedCustomer.appointmentDate || selectedCustomer.appointmentTime) && (
-              <p className="mt-2 flex items-center gap-1.5 text-xs font-extrabold text-blue-900">
-                <Calendar className="h-3.5 w-3.5 shrink-0" />
-                <span>
-                  アポ日時：{selectedCustomer.appointmentDate} {selectedCustomer.appointmentTime}
-                </span>
-              </p>
+            (selectedCustomer.appointmentDate ||
+              selectedCustomer.appointmentTime ||
+              selectedCustomer.interviewerName) && (
+              <div className="mt-2 space-y-0.5 text-xs font-extrabold text-blue-900">
+                {(selectedCustomer.appointmentDate || selectedCustomer.appointmentTime) && (
+                  <p className="flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      アポ日時：{selectedCustomer.appointmentDate} {selectedCustomer.appointmentTime}
+                    </span>
+                  </p>
+                )}
+                {selectedCustomer.interviewerName && (
+                  <p className="pl-5 text-[11px]">
+                    取材担当：{selectedCustomer.interviewerName}
+                  </p>
+                )}
+              </div>
             )}
 
           {selectedCustomer.address && (
@@ -599,9 +627,9 @@ export function CustomerMap({
                     </div>
                   </div>
                   {candidateStatus === "アポ獲得" && (
-                    <div className="space-y-1">
+                    <div className="space-y-1.5">
                       <p className="text-[11px] font-extrabold text-blue-900">
-                        アポ日時（必須）
+                        アポ日時（必須）＆ 取材担当
                       </p>
                       <div className="grid grid-cols-2 gap-1.5">
                         <input
@@ -625,6 +653,21 @@ export function CustomerMap({
                           className="min-h-[38px] rounded-lg border-2 border-[#1C1A16] bg-white px-2 text-xs font-bold"
                         />
                       </div>
+                      <select
+                        aria-label="取材担当"
+                        value={candInterviewerUid || defaultInterviewerUid}
+                        onChange={(e) => setCandInterviewerUid(e.target.value)}
+                        className="min-h-[38px] w-full rounded-lg border-2 border-[#D5CEC0] bg-white px-2 text-xs font-bold"
+                      >
+                        {(teamMembers.length > 0
+                          ? teamMembers
+                          : [{ uid: defaultInterviewerUid, name: salesRepName || "自分" }]
+                        ).map((m) => (
+                          <option key={m.uid} value={m.uid}>
+                            取材担当：{m.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   )}
                 </>
@@ -647,7 +690,16 @@ export function CustomerMap({
                     selectedCandidate,
                     candidateStatus,
                     candidateStatus === "アポ獲得"
-                      ? { date: candApptDate, time: candApptTime }
+                      ? (() => {
+                          const targetUid = candInterviewerUid || defaultInterviewerUid;
+                          const matched = teamMembers.find((m) => m.uid === targetUid);
+                          return {
+                            date: candApptDate,
+                            time: candApptTime,
+                            interviewerUid: targetUid,
+                            interviewerName: matched?.name || salesRepName,
+                          };
+                        })()
                       : undefined
                   );
                 }}
