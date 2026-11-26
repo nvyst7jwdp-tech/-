@@ -4,11 +4,14 @@ service cloud.firestore {
     function isSignedIn() {
       return request.auth != null;
     }
+    function userDocExists() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
     function myProfile() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
     function isActiveApproved() {
-      return isSignedIn() && myProfile().approved == true && myProfile().active == true;
+      return userDocExists() && myProfile().approved == true && myProfile().active == true;
     }
     function isLeader() {
       return isActiveApproved() && myProfile().role in ['manager', 'admin'];
@@ -18,18 +21,25 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isSignedIn() && (request.auth.uid == userId || isActiveApproved());
+      // 未作成ドキュメントの自己確認や本人読取は常に許可、一覧取得は承認済みユーザーのみ
+      allow get: if isSignedIn() && (request.auth.uid == userId || isActiveApproved());
+      allow list: if isActiveApproved();
       allow create: if isSignedIn() && request.auth.uid == userId;
       allow update: if isAdmin() || (
         isSignedIn() && request.auth.uid == userId &&
         request.resource.data.role == resource.data.role &&
-        request.resource.data.approved == resource.data.approved &&
-        request.resource.data.active == resource.data.active
+        request.resource.data.active == resource.data.active &&
+        (
+          request.resource.data.approved == resource.data.approved ||
+          (resource.data.approved == false && request.resource.data.approved == true)
+        )
       );
     }
 
     match /invites/{inviteCode} {
-      allow read: if isSignedIn();
+      // 招待コード単体の確認は未認証でも可能（一覧取得は管理者のみ）
+      allow get: if true;
+      allow list: if isAdmin();
       allow create, delete: if isAdmin();
       allow update: if isAdmin() || (
         isSignedIn() &&
@@ -39,8 +49,8 @@ service cloud.firestore {
     }
 
     match /meta/bootstrap {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
+      allow get: if isSignedIn();
+      allow create: if isSignedIn() && !exists(/databases/$(database)/documents/meta/bootstrap);
       allow update, delete: if false;
     }
 
