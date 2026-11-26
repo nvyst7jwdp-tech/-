@@ -104,13 +104,29 @@ ${salesRepName || "ぐるポ営業担当"}
 }`;
 
   type GeminiResp = {
-    error?: { message?: string };
+    error?: { code?: number; status?: string; message?: string };
     candidates?: {
       content?: { parts?: { text?: string }[] };
     }[];
   };
 
-  async function callGenerateContent(modelName: string): Promise<{ ok: boolean; data: GeminiResp }> {
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  function isTransientError(status: number, message?: string): boolean {
+    if (status === 429 || status === 503 || status === 500) return true;
+    const m = (message || "").toLowerCase();
+    return (
+      m.includes("high demand") ||
+      m.includes("overloaded") ||
+      m.includes("temporarily") ||
+      m.includes("try again") ||
+      m.includes("rate limit")
+    );
+  }
+
+  async function callGenerateContent(
+    modelName: string
+  ): Promise<{ ok: boolean; status: number; data: GeminiResp }> {
     const cleanModel = modelName.replace(/^models\//, "");
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
@@ -129,22 +145,47 @@ ${salesRepName || "ぐるポ営業担当"}
       }
     );
     const data = (await res.json()) as GeminiResp;
-    return { ok: res.ok, data };
+    return { ok: res.ok, status: res.status, data };
+  }
+
+  function rankFallbackModel(name: string): number {
+    const n = name.toLowerCase();
+    if (n.includes("gemini-3") && n.includes("flash")) return 1;
+    if (n.includes("flash-latest") || n.includes("flash-lite")) return 2;
+    if (n.includes("gemini-3") && n.includes("pro")) return 3;
+    if (n.includes("pro-latest")) return 4;
+    if (n.includes("gemini-2.5") || n.includes("gemini-2.0")) return 8;
+    if (n.includes("flash")) return 5;
+    return 9;
   }
 
   let json: GeminiResp = {};
   let succeeded = false;
+  let sawTransient = false;
   const errors: string[] = [];
 
-  // 1. まず推奨モデル gemini-3.8-flash を試す
-  const firstTry = await callGenerateContent("gemini-3.8-flash");
-  if (firstTry.ok) {
-    json = firstTry.data;
-    succeeded = true;
-  } else {
-    errors.push(`gemini-3.8-flash: ${firstTry.data.error?.message || "失敗"}`);
+  // 1. gemini-3.8-flash をバックオフ付きで最大3回試す（初回 + 1秒後 + 2秒後）
+  const retryDelays = [0, 1000, 2000];
+  for (const delay of retryDelays) {
+    if (delay > 0) await sleep(delay);
+    const attempt = await callGenerateContent("gemini-3.8-flash");
+    if (attempt.ok) {
+      json = attempt.data;
+      succeeded = true;
+      break;
+    }
+    const msg = attempt.data.error?.message || "失敗";
+    if (isTransientError(attempt.status, msg)) {
+      sawTransient = true;
+      errors.push(`gemini-3.8-flash: ${msg}`);
+      continue;
+    }
+    errors.push(`gemini-3.8-flash: ${msg}`);
+    break;
+  }
 
-    // 2. 利用可能なモデル一覧を自動取得して、generateContent対応のflashモデルで再試行
+  // 2. まだ失敗していれば、利用可能モデル一覧から新しい世代のFlash/Lite/Proを優先順に試す
+  if (!succeeded) {
     try {
       const listRes = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`
@@ -158,28 +199,37 @@ ${salesRepName || "ぐるポ営業担当"}
             (m) =>
               m.name &&
               m.supportedGenerationMethods?.includes("generateContent") &&
-              /flash/i.test(m.name) &&
-              !/gemini-3\.8-flash$/i.test(m.name)
+              !/gemini-3\.8-flash$/i.test(m.name) &&
+              !/(embedding|imagen|veo|tts|aqa)/i.test(m.name)
           )
-          .map((m) => m.name as string);
+          .map((m) => m.name as string)
+          .sort((a, b) => rankFallbackModel(a) - rankFallbackModel(b));
 
-        for (const candidateModel of candidates.slice(0, 3)) {
+        for (const candidateModel of candidates.slice(0, 6)) {
           const retry = await callGenerateContent(candidateModel);
           if (retry.ok) {
             json = retry.data;
             succeeded = true;
             break;
-          } else {
-            errors.push(`${candidateModel}: ${retry.data.error?.message || "失敗"}`);
           }
+          const msg = retry.data.error?.message || "失敗";
+          if (isTransientError(retry.status, msg)) {
+            sawTransient = true;
+          }
+          errors.push(`${candidateModel}: ${msg}`);
         }
       }
     } catch {
-      // モデル一覧取得失敗時はそのまま最初のエラーを返す
+      // モデル一覧取得失敗時はそのままエラー処理へ
     }
   }
 
   if (!succeeded) {
+    if (sawTransient) {
+      throw new Error(
+        "AIサーバーが一時的に混雑しています。10秒ほど待ってから「再分析」を押してください。"
+      );
+    }
     throw new Error(errors[0] || "Gemini API での分析に失敗しました。");
   }
 
