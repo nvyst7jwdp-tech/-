@@ -84,5 +84,11 @@ service cloud.firestore {
         allow write: if isActiveApproved() && request.auth.uid == uid;
       }
     }
+
+    match /recordings/{recId} {
+      allow read: if isActiveApproved() && (isLeader() || resource.data.ownerUid == request.auth.uid);
+      allow create: if isActiveApproved() && (isLeader() || request.resource.data.ownerUid == request.auth.uid);
+      allow update, delete: if isActiveApproved() && (isLeader() || resource.data.ownerUid == request.auth.uid);
+    }
   }
 }
