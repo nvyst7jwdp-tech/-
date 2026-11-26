@@ -180,7 +180,6 @@ const NAV_ITEMS = [
 export function PublicPreviewShell() {
   const [rolePreview, setRolePreview] = useState("member");
   const [activeTab, setActiveTab] = useState("today");
-  const [sortMode, setSortMode] = useState("distance");
   const [previewDayOffset, setPreviewDayOffset] = useState(0);
   const [previewChartMode, setPreviewChartMode] = useState<"weekly" | "monthly">("weekly");
   const [announcements, setAnnouncements] = useState(INITIAL_ANNOUNCEMENTS);
@@ -241,13 +240,6 @@ export function PublicPreviewShell() {
       todayAnimatedRef.current = true;
     }
   }, [activeTab]);
-
-  const sortedTodayStores = useMemo(() => {
-    const copy = [...SAMPLE_TODAY_STORES];
-    return sortMode === "distance"
-      ? copy.sort((a, b) => a.distanceKm - b.distanceKm)
-      : copy.sort((a, b) => (a.scheduledTime || "99:99").localeCompare(b.scheduledTime || "99:99"));
-  }, [sortMode]);
 
   const selfKpi = SAMPLE_TEAM_MEMBERS_KPI.find((m) => m.id === "u-satou") ?? SAMPLE_TEAM_MEMBERS_KPI[0];
   const selfRank = computeRankByContracts(SAMPLE_TEAM_MEMBERS_KPI, "u-satou");
@@ -573,80 +565,6 @@ export function PublicPreviewShell() {
                         )}
                       </div>
                     </div>
-                  ))}
-                </div>
-              </section>
-
-              <section>
-                <div className="mb-2.5 flex items-center justify-between gap-2">
-                  <h2 className="flex items-center gap-2 text-base font-extrabold">
-                    <Store className="h-5 w-5 text-[#D94E2B]" />
-                    <span>今日回る店舗</span>
-                  </h2>
-                  <div className="inline-flex rounded-xl border border-[#D5CEC0] bg-[#EFEAE0] p-0.5 text-[11px] font-extrabold">
-                    <button
-                      type="button"
-                      onClick={() => setSortMode("distance")}
-                      className={`min-h-[30px] rounded-lg px-2.5 ${sortMode === "distance" ? "bg-[#1C1A16] text-white" : "text-[#474239]"}`}
-                    >
-                      近い順
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSortMode("time")}
-                      className={`min-h-[30px] rounded-lg px-2.5 ${sortMode === "time" ? "bg-[#1C1A16] text-white" : "text-[#474239]"}`}
-                    >
-                      予定時刻順
-                    </button>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  {sortedTodayStores.map((store) => (
-                    <article key={store.id} className="rounded-2xl border-2 border-[#D5CEC0] bg-white p-4">
-                      <div className="flex items-center justify-between">
-                        <span className="rounded-md border border-[#D5CEC0] bg-[#F7F4ED] px-2 py-0.5 text-xs font-extrabold">
-                          {store.status}
-                        </span>
-                        <span className="text-xs font-bold text-[#575249]">
-                          {sortMode === "time" && store.scheduledTime
-                            ? `予定 ${store.scheduledTime} ・ 約${store.distanceKm}km`
-                            : `直線 約${store.distanceKm}km`}
-                        </span>
-                      </div>
-                      <h3 className="mt-1.5 text-base font-extrabold">{store.name}</h3>
-                      <p className="mt-1.5 truncate rounded-lg bg-[#F7F4ED] px-2.5 py-1.5 text-xs font-medium text-[#3D3932]">
-                        状況：{store.situation}
-                      </p>
-                      <div className="mt-3 grid grid-cols-3 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            notify(`${store.name} の訪問記録へ移動`);
-                            setActiveTab("visit");
-                          }}
-                          className="flex min-h-[44px] items-center justify-center gap-1 rounded-xl bg-[#D94E2B] px-2 text-xs font-extrabold text-white active:scale-[0.97]"
-                        >
-                          <ClipboardCheck className="h-4 w-4 shrink-0" />
-                          <span>訪問を記録</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setActiveTab("stores")}
-                          className="flex min-h-[44px] items-center justify-center gap-1 rounded-xl border-2 border-[#1C1A16] bg-white px-2 text-xs font-extrabold active:scale-[0.97]"
-                        >
-                          <MapPin className="h-4 w-4 shrink-0" />
-                          <span>地図</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPhoneModalStore(store)}
-                          className="flex min-h-[44px] items-center justify-center gap-1 rounded-xl border-2 border-[#D5CEC0] bg-[#F7F4ED] px-2 text-xs font-extrabold active:scale-[0.97]"
-                        >
-                          <Phone className="h-4 w-4 shrink-0" />
-                          <span>電話</span>
-                        </button>
-                      </div>
-                    </article>
                   ))}
                 </div>
               </section>

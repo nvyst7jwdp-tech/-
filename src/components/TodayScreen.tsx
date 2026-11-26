@@ -1,15 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Calendar,
-  MapPin,
-  Phone,
-  ClipboardCheck,
   RefreshCw,
   TrendingUp,
   Award,
   X,
   CheckCircle2,
-  Store,
   Bell,
   ChevronRight,
   ChevronLeft,
@@ -25,7 +21,6 @@ import {
   shiftDateString,
   type HomeAnnouncement,
   type HomeData,
-  type HomeStore,
 } from "../services/homeDataService";
 import { KpiTrendChart } from "./KpiTrendChart";
 
@@ -63,13 +58,11 @@ export function TodayScreen({
   const [data, setData] = useState<HomeData>(EMPTY_HOME_DATA);
   const [loading, setLoading] = useState(true);
   const [chartGranularity, setChartGranularity] = useState<"weekly" | "monthly">("weekly");
-  const [sortMode, setSortMode] = useState<"distance" | "time">("distance");
   const [showAnnouncementList, setShowAnnouncementList] = useState(false);
   const [newAnnTitle, setNewAnnTitle] = useState("");
   const [newAnnBody, setNewAnnBody] = useState("");
   const [newAnnImportant, setNewAnnImportant] = useState(false);
   const [savingAnn, setSavingAnn] = useState(false);
-  const [phoneModalStore, setPhoneModalStore] = useState<HomeStore | null>(null);
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
@@ -93,16 +86,6 @@ export function TodayScreen({
   const unreadCount = data.announcements.filter((a) => !a.read).length;
   const hasImportantUnread = data.announcements.some((a) => !a.read && a.important);
   const latestAnnouncement = data.announcements[0] ?? null;
-
-  const sortedStores = useMemo(() => {
-    const copy = [...data.stores];
-    if (sortMode === "distance") {
-      return copy.sort((a, b) => (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999));
-    }
-    return copy.sort((a, b) =>
-      (a.scheduledTime ?? "99:99").localeCompare(b.scheduledTime ?? "99:99")
-    );
-  }, [data.stores, sortMode]);
 
   const cardAnim = (index: number) =>
     animateCards
@@ -432,117 +415,6 @@ export function TodayScreen({
             )}
           </section>
 
-          {/* 今日回る店舗 */}
-          <section aria-labelledby="today-stores-heading">
-            <div className="mb-2.5 flex items-center justify-between gap-2">
-              <h2
-                id="today-stores-heading"
-                className="flex items-center gap-2 text-base font-extrabold text-[#1C1A16]"
-              >
-                <Store className="h-5 w-5 text-[#D94E2B]" />
-                <span>回る予定の顧客</span>
-              </h2>
-
-              <div
-                role="tablist"
-                aria-label="店舗の並び順"
-                className="inline-flex rounded-xl border border-[#D5CEC0] bg-[#EFEAE0] p-0.5 text-[11px] font-extrabold"
-              >
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={sortMode === "distance"}
-                  onClick={() => setSortMode("distance")}
-                  className={`min-h-[30px] rounded-lg px-2.5 transition-colors duration-150 ${
-                    sortMode === "distance" ? "bg-[#1C1A16] text-white" : "text-[#474239]"
-                  }`}
-                >
-                  近い順
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={sortMode === "time"}
-                  onClick={() => setSortMode("time")}
-                  className={`min-h-[30px] rounded-lg px-2.5 transition-colors duration-150 ${
-                    sortMode === "time" ? "bg-[#1C1A16] text-white" : "text-[#474239]"
-                  }`}
-                >
-                  予定時刻順
-                </button>
-              </div>
-            </div>
-
-            {sortedStores.length === 0 ? (
-              <div className="rounded-2xl border-2 border-[#D5CEC0] bg-white p-4 text-xs font-bold text-[#575249]">
-                回る顧客はまだ登録されていません。
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {sortedStores.slice(0, 10).map((store, idx) => {
-                  const anim = cardAnim(idx + 4);
-                  return (
-                    <article
-                      key={store.id}
-                      style={anim.style}
-                      className={`rounded-2xl border-2 border-[#D5CEC0] bg-white p-4 ${anim.className}`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="rounded-md border border-[#D5CEC0] bg-[#F7F4ED] px-2 py-0.5 text-xs font-extrabold text-[#1C1A16]">
-                          {store.status}
-                        </span>
-                        <span className="text-xs font-bold text-[#575249]">
-                          {sortMode === "time" && store.scheduledTime
-                            ? `予定 ${store.scheduledTime}`
-                            : store.distanceKm !== null
-                            ? `直線 約${store.distanceKm}km`
-                            : "距離未登録"}
-                        </span>
-                      </div>
-
-                      <h3 className="mt-1.5 text-base font-extrabold text-[#1C1A16]">
-                        {store.name}
-                      </h3>
-
-                      {store.situation && (
-                        <p className="mt-1.5 truncate rounded-lg bg-[#F7F4ED] px-2.5 py-1.5 text-xs font-medium text-[#3D3932]">
-                          状況：{store.situation}
-                        </p>
-                      )}
-
-                      <div className="mt-3 grid grid-cols-3 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => onNavigateTab("visit")}
-                          className="flex min-h-[46px] items-center justify-center gap-1 rounded-xl bg-[#D94E2B] px-2 text-xs font-extrabold text-white transition-transform duration-100 active:scale-[0.97]"
-                        >
-                          <ClipboardCheck className="h-4 w-4 shrink-0" />
-                          <span>訪問を記録</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onNavigateTab("stores")}
-                          className="flex min-h-[46px] items-center justify-center gap-1 rounded-xl border-2 border-[#1C1A16] bg-white px-2 text-xs font-extrabold text-[#1C1A16] transition-transform duration-100 active:scale-[0.97]"
-                        >
-                          <MapPin className="h-4 w-4 shrink-0" />
-                          <span>地図</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPhoneModalStore(store)}
-                          className="flex min-h-[46px] items-center justify-center gap-1 rounded-xl border-2 border-[#D5CEC0] bg-[#F7F4ED] px-2 text-xs font-extrabold text-[#1C1A16] transition-transform duration-100 active:scale-[0.97]"
-                        >
-                          <Phone className="h-4 w-4 shrink-0" />
-                          <span>電話</span>
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-
           {/* チーム順位（リーダー時のみ） */}
           {isLeader && (
             <div className="rounded-2xl border-2 border-[#D5CEC0] bg-white p-3.5">
@@ -687,50 +559,6 @@ export function TodayScreen({
         </div>
       )}
 
-      {/* 電話発信モーダル */}
-      {phoneModalStore && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="phone-modal-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-        >
-          <div className="gurupo-toast-pop w-full max-w-sm space-y-4 rounded-3xl border-2 border-[#1C1A16] bg-[#FBF9F4] p-5 shadow-xl">
-            <div className="flex items-center justify-between">
-              <h3 id="phone-modal-title" className="text-base font-extrabold text-[#1C1A16]">
-                {phoneModalStore.name}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setPhoneModalStore(null)}
-                aria-label="閉じる"
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#EFEAE0]"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            {phoneModalStore.phone ? (
-              <a
-                href={`tel:${phoneModalStore.phone}`}
-                className="block rounded-xl border border-[#D5CEC0] bg-white p-3 text-center text-lg font-extrabold tabular-nums text-[#D94E2B]"
-              >
-                {phoneModalStore.phone}
-              </a>
-            ) : (
-              <p className="rounded-xl border border-[#D5CEC0] bg-white p-3 text-center text-xs font-bold text-[#575249]">
-                電話番号が未登録です
-              </p>
-            )}
-            <button
-              type="button"
-              onClick={() => setPhoneModalStore(null)}
-              className="min-h-[46px] w-full rounded-xl bg-[#1C1A16] text-xs font-extrabold text-white transition-transform duration-100 active:scale-[0.97]"
-            >
-              閉じる
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
