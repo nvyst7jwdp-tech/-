@@ -12,7 +12,7 @@ const NAV_ITEMS: { id: AppTab; label: string; icon: React.ComponentType<{ classN
   { id: "today", label: "ホーム", icon: Home },
   { id: "stores", label: "店舗", icon: Store },
   { id: "visit", label: "予定", icon: CalendarDays },
-  { id: "recording", label: "録音", icon: Mic },
+  { id: "recording", label: "取材", icon: Mic },
   { id: "training", label: "研修", icon: BookOpen },
   { id: "menu", label: "メニュー", icon: Menu },
 ];

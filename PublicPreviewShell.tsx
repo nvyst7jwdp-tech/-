@@ -241,7 +241,7 @@ const NAV_ITEMS = [
   { id: "today", label: "ホーム", icon: Home },
   { id: "stores", label: "店舗", icon: Store },
   { id: "visit", label: "予定", icon: Calendar },
-  { id: "recording", label: "録音", icon: Mic },
+  { id: "recording", label: "取材", icon: Mic },
   { id: "training", label: "研修", icon: BookOpen },
   { id: "menu", label: "メニュー", icon: Menu },
 ];
@@ -1754,7 +1754,7 @@ export function PublicPreviewShell() {
             return (
               <div className="gurupo-screen-enter space-y-4">
                 <div className="flex items-center justify-between">
-                  <h1 className="text-xl font-extrabold">商談・取材 録音</h1>
+                  <h1 className="text-xl font-extrabold">取材</h1>
                   <span className="rounded-full bg-[#EFEAE0] px-2.5 py-1 text-[11px] font-extrabold text-[#474239]">
                     {previewRecordings.length}件
                   </span>
@@ -1873,7 +1873,7 @@ export function PublicPreviewShell() {
                 {activeTab === "training" ? "研修ライブラリ" : "メニュー"}
               </h2>
               <p className="mt-2 text-xs font-medium text-[#575249]">
-                現在このプレビューでは「ホーム」「店舗」「予定」「録音」を確認できます。
+                現在このプレビューでは「ホーム」「店舗」「予定」「取材」を確認できます。
               </p>
             </section>
           )}

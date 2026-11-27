@@ -430,7 +430,7 @@ export function RecordingScreen({ profile }: { profile: UserProfile }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-extrabold text-[#1C1A16]">商談・取材 録音</h1>
+        <h1 className="text-xl font-extrabold text-[#1C1A16]">取材</h1>
         <span className="rounded-full bg-[#EFEAE0] px-2.5 py-1 text-[11px] font-extrabold text-[#474239]">
           {recordings.length}件
         </span>
