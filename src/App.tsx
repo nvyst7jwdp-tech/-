@@ -14,6 +14,7 @@ import { AdminPanel } from "./components/AdminPanel";
 import { TodayScreen } from "./components/TodayScreen";
 import { StoresScreen } from "./components/StoresScreen";
 import { VisitScreen } from "./components/VisitScreen";
+import { RecordingScreen } from "./components/RecordingScreen";
 import { PublicPreviewShell } from "./components/PublicPreviewShell";
 
 export default function App() {
@@ -107,6 +108,8 @@ export default function App() {
         <StoresScreen profile={profile} onNavigateTab={setActiveTab} />
       ) : activeTab === "visit" ? (
         <VisitScreen profile={profile} />
+      ) : activeTab === "recording" ? (
+        <RecordingScreen profile={profile} />
       ) : activeTab === "menu" && profile.role === "admin" ? (
         <AdminPanel currentAdmin={profile} />
       ) : (

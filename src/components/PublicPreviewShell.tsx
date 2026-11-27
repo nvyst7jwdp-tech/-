@@ -31,6 +31,18 @@ import {
   ChevronDown,
   ChevronUp,
   AlertTriangle,
+  Mic,
+  Square,
+  Play,
+  Pause,
+  CheckSquare,
+  ListChecks,
+  ThumbsUp,
+  Lightbulb,
+  ArrowRight,
+  Volume2,
+  Clock,
+  User,
 } from "lucide-react";
 
 const INITIAL_ANNOUNCEMENTS = [
@@ -169,10 +181,67 @@ function computeRankByContracts(rows: { id: string; contracts: number }[], targe
   return rows.filter((r) => r.contracts > target.contracts).length + 1;
 }
 
+
+const INITIAL_PREVIEW_RECORDINGS = [
+  {
+    id: "rec-1",
+    title: "サンプル店舗A 初回商談",
+    ownerName: "佐藤 健太",
+    recordedAt: "11/26 10:45",
+    durationSec: 412,
+    summaryPoints: [
+      "店舗側はInstagramでの新規集客と週末の予約数増加を特に重視している",
+      "ぐるポの店舗ページ作成と料理写真撮影のサポートに強い関心を示した",
+      "掲載プランの月額費用と初月キャンペーンについてオーナーへ確認する流れになった",
+      "来週火曜日の14:00に再度オンラインで最終回答をもらう約束をした",
+    ],
+    tasks: [
+      { id: "t-1", text: "掲載プラン比較資料と事例URLをメールで送付する", done: true },
+      { id: "t-2", text: "12月2日(火) 14:00のオンライン再商談をカレンダー登録する", done: false },
+      { id: "t-3", text: "撮影希望メニュー3品の事前ヒアリングシートを送る", done: false },
+    ],
+    feedback: {
+      goodPoints: [
+        "店舗の課題（週末の空き席）を冒頭で丁寧に引き出せていました。",
+        "同業態の導入事例を具体的な数字とあわせて提示できていました。",
+      ],
+      improvements: [
+        "料金説明の後にもう1ステップ質問を挟むと、懸念点をその場で解消しやすくなります。",
+      ],
+      nextAdvice: "次回はオーナー同席の前提で、初月の掲載スケジュール案を1枚用意して臨みましょう。",
+    },
+  },
+  {
+    id: "rec-2",
+    title: "サンプル食堂B フォロー架電",
+    ownerName: "佐藤 健太",
+    recordedAt: "11/25 16:20",
+    durationSec: 185,
+    summaryPoints: [
+      "先週お渡ししたパンフレットを店長が確認済みだった",
+      "ランチ帯の認知拡大に関心があり、取材日時の調整を希望",
+      "木曜日の15時以降なら店舗でゆっくり話せるとのこと",
+    ],
+    tasks: [
+      { id: "t-4", text: "木曜15:00の訪問アポを店舗画面で登録する", done: false },
+    ],
+    feedback: {
+      goodPoints: [
+        "明るいトーンで手短に要点を伝え、次のアポ候補日を引き出せていました。",
+      ],
+      improvements: [
+        "電話を切る前に当日の所要時間（約20分）も一言添えるとより安心感が高まります。",
+      ],
+      nextAdvice: "訪問前にサンプル食堂Bの最新口コミを2〜3件確認し、会話のフックにしましょう。",
+    },
+  },
+];
+
 const NAV_ITEMS = [
   { id: "today", label: "ホーム", icon: Home },
   { id: "stores", label: "店舗", icon: Store },
   { id: "visit", label: "予定", icon: Calendar },
+  { id: "recording", label: "取材", icon: Mic },
   { id: "training", label: "研修", icon: BookOpen },
   { id: "menu", label: "メニュー", icon: Menu },
 ];
@@ -216,6 +285,13 @@ export function PublicPreviewShell() {
   const [candApptTime, setCandApptTime] = useState("");
   const [candApptErr, setCandApptErr] = useState("");
   const [candInterviewer, setCandInterviewer] = useState("佐藤 健太");
+  const [previewRecordings, setPreviewRecordings] = useState(INITIAL_PREVIEW_RECORDINGS);
+  const [selectedRecId, setSelectedRecId] = useState<string | null>(null);
+  const [recTitleInput, setRecTitleInput] = useState("");
+  const [isPreviewRecording, setIsPreviewRecording] = useState(false);
+  const [previewRecSec, setPreviewRecSec] = useState(0);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+
 
   const isLeader = rolePreview === "manager" || rolePreview === "admin";
   const unreadCount = announcements.filter((a) => !a.read).length;
@@ -229,6 +305,12 @@ export function PublicPreviewShell() {
     const t = setTimeout(() => setToast(""), 2200);
     return () => clearTimeout(t);
   }, [toast]);
+
+  useEffect(() => {
+    if (!isPreviewRecording) return;
+    const iv = setInterval(() => setPreviewRecSec((s) => s + 1), 1000);
+    return () => clearInterval(iv);
+  }, [isPreviewRecording]);
 
   useEffect(() => {
     if (!selectedPinId && !selectedListStoreId) return;
@@ -1517,15 +1599,281 @@ export function PublicPreviewShell() {
             );
           })()}
 
-          {activeTab !== "today" && activeTab !== "stores" && activeTab !== "visit" && (
+          {activeTab === "recording" && (() => {
+            const selectedRec = previewRecordings.find((r) => r.id === selectedRecId) || null;
+            const fmtSec = (sec: number) => `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(sec % 60).padStart(2, "0")}`;
+            if (selectedRec) {
+              const doneCount = selectedRec.tasks.filter((t) => t.done).length;
+              return (
+                <div className="gurupo-screen-enter space-y-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedRecId(null);
+                      setIsAudioPlaying(false);
+                    }}
+                    className="flex min-h-[40px] items-center gap-1 rounded-xl border-2 border-[#D5CEC0] bg-white px-3 text-xs font-extrabold text-[#1C1A16]"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    <span>録音一覧へ</span>
+                  </button>
+
+                  <section className="rounded-2xl border-2 border-[#1C1A16] bg-white p-4">
+                    <h2 className="text-base font-extrabold">{selectedRec.title}</h2>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs font-bold text-[#575249]">
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3.5 w-3.5" />
+                        {selectedRec.recordedAt}（{fmtSec(selectedRec.durationSec)}）
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <User className="h-3.5 w-3.5" />
+                        {selectedRec.ownerName}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 rounded-xl border border-[#D5CEC0] bg-[#FBF9F4] p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setIsAudioPlaying((v) => !v)}
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1C1A16] text-white"
+                        >
+                          {isAudioPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                        </button>
+                        <div className="flex-1">
+                          <p className="flex items-center gap-1 text-[11px] font-extrabold text-[#1C1A16]">
+                            <Volume2 className="h-3.5 w-3.5 text-[#D94E2B]" />
+                            <span>{isAudioPlaying ? "再生中（プレビュー）" : "音声再生（プレビュー）"}</span>
+                          </p>
+                          <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-[#E5DFD3]">
+                            <div className={`h-full rounded-full bg-[#D94E2B] transition-all ${isAudioPlaying ? "w-2/3" : "w-1/4"}`} />
+                          </div>
+                        </div>
+                        <span className="text-[11px] font-extrabold tabular-nums text-[#575249]">
+                          {fmtSec(selectedRec.durationSec)}
+                        </span>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="rounded-2xl border-2 border-[#D5CEC0] bg-white p-4">
+                    <h3 className="flex items-center gap-1.5 text-sm font-extrabold">
+                      <Sparkles className="h-4 w-4 text-[#D94E2B]" />
+                      <span>要点サマリー（{selectedRec.summaryPoints.length}件）</span>
+                    </h3>
+                    <ul className="mt-2.5 space-y-2">
+                      {selectedRec.summaryPoints.map((pt, i) => (
+                        <li key={i} className="flex items-start gap-2 rounded-xl bg-[#FBF9F4] px-3 py-2 text-xs font-bold leading-relaxed">
+                          <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#1C1A16] text-[10px] font-extrabold text-white">
+                            {i + 1}
+                          </span>
+                          <span>{pt}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+
+                  <section className="rounded-2xl border-2 border-[#D5CEC0] bg-white p-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="flex items-center gap-1.5 text-sm font-extrabold">
+                        <ListChecks className="h-4 w-4 text-[#2563EB]" />
+                        <span>抽出タスク（やるべきこと）</span>
+                      </h3>
+                      <span className="rounded-full bg-[#EFEAE0] px-2.5 py-0.5 text-[11px] font-extrabold tabular-nums text-[#474239]">
+                        {doneCount} / {selectedRec.tasks.length} 完了
+                      </span>
+                    </div>
+                    <div className="mt-2.5 space-y-2">
+                      {selectedRec.tasks.map((task) => (
+                        <button
+                          key={task.id}
+                          type="button"
+                          onClick={() => {
+                            setPreviewRecordings((prev) =>
+                              prev.map((r) =>
+                                r.id === selectedRec.id
+                                  ? {
+                                      ...r,
+                                      tasks: r.tasks.map((t) =>
+                                        t.id === task.id ? { ...t, done: !t.done } : t
+                                      ),
+                                    }
+                                  : r
+                              )
+                            );
+                          }}
+                          className={`flex min-h-[42px] w-full items-start gap-2.5 rounded-xl border-2 px-3 py-2 text-left text-xs font-bold ${
+                            task.done
+                              ? "border-emerald-300 bg-emerald-50 text-emerald-950 line-through opacity-75"
+                              : "border-[#D5CEC0] bg-[#FBF9F4] text-[#1C1A16]"
+                          }`}
+                        >
+                          <CheckSquare className={`mt-0.5 h-4 w-4 shrink-0 ${task.done ? "text-emerald-600" : "text-[#8A8377]"}`} />
+                          <span>{task.text}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="space-y-2.5 rounded-2xl border-2 border-[#D5CEC0] bg-white p-4">
+                    <h3 className="text-sm font-extrabold">AI営業フィードバック</h3>
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3">
+                      <p className="flex items-center gap-1.5 text-xs font-extrabold text-emerald-900">
+                        <ThumbsUp className="h-3.5 w-3.5" />
+                        <span>良かった点</span>
+                      </p>
+                      <ul className="mt-1 space-y-1 text-xs font-bold text-emerald-950">
+                        {selectedRec.feedback.goodPoints.map((g, i) => (
+                          <li key={i}>・{g}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3">
+                      <p className="flex items-center gap-1.5 text-xs font-extrabold text-amber-900">
+                        <Lightbulb className="h-3.5 w-3.5" />
+                        <span>改善のポイント</span>
+                      </p>
+                      <ul className="mt-1 space-y-1 text-xs font-bold text-amber-950">
+                        {selectedRec.feedback.improvements.map((imp, i) => (
+                          <li key={i}>・{imp}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="rounded-xl border border-[#D94E2B]/30 bg-[#FFF5F2] p-3">
+                      <p className="flex items-center gap-1.5 text-xs font-extrabold text-[#9A3412]">
+                        <ArrowRight className="h-3.5 w-3.5" />
+                        <span>次回への提案</span>
+                      </p>
+                      <p className="mt-1 text-xs font-bold text-[#1C1A16]">{selectedRec.feedback.nextAdvice}</p>
+                    </div>
+                  </section>
+                </div>
+              );
+            }
+
+            return (
+              <div className="gurupo-screen-enter space-y-4">
+                <div className="flex items-center justify-between">
+                  <h1 className="text-xl font-extrabold">取材</h1>
+                  <span className="rounded-full bg-[#EFEAE0] px-2.5 py-1 text-[11px] font-extrabold text-[#474239]">
+                    {previewRecordings.length}件
+                  </span>
+                </div>
+
+                <section className="space-y-3 rounded-2xl border-2 border-[#1C1A16] bg-white p-4">
+                  <div>
+                    <p className="text-xs font-extrabold text-[#474239]">タイトル・店舗名（任意）</p>
+                    <input
+                      type="text"
+                      value={recTitleInput}
+                      onChange={(e) => setRecTitleInput(e.target.value)}
+                      disabled={isPreviewRecording}
+                      placeholder="例：サンプル居酒屋C 初回商談"
+                      className="mt-1 min-h-[42px] w-full rounded-xl border-2 border-[#D5CEC0] bg-[#FBF9F4] px-3 text-sm font-bold"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between rounded-2xl border-2 border-[#D5CEC0] bg-[#FBF9F4] px-4 py-3">
+                    <div>
+                      <p className="text-xs font-bold text-[#575249]">
+                        {isPreviewRecording ? "録音中（プレビュー）" : "ボタンを押して録音を開始"}
+                      </p>
+                      <p className="mt-0.5 text-2xl font-extrabold tabular-nums">{fmtSec(previewRecSec)}</p>
+                    </div>
+                    {!isPreviewRecording ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPreviewRecSec(0);
+                          setIsPreviewRecording(true);
+                        }}
+                        className="flex min-h-[46px] items-center gap-2 rounded-2xl bg-[#D94E2B] px-4 text-sm font-extrabold text-white"
+                      >
+                        <Mic className="h-4 w-4" />
+                        <span>録音開始</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsPreviewRecording(false);
+                          const newId = "rec-" + Date.now();
+                          const newRec = {
+                            id: newId,
+                            title: recTitleInput.trim() || "新規商談録音（プレビュー）",
+                            ownerName: "佐藤 健太",
+                            recordedAt: "たった今",
+                            durationSec: Math.max(3, previewRecSec),
+                            summaryPoints: [
+                              "お店の看板メニューとターゲット客層についてヒアリングを実施",
+                              "写真撮影サポートと掲載手順について前向きな反応を得た",
+                              "来週中に導入可否の最終確認を行う流れとなった",
+                            ],
+                            tasks: [
+                              { id: "nt-1", text: "導入事例と料金プランをメール送付する", done: false },
+                              { id: "nt-2", text: "来週水曜にフォロー架電する", done: false },
+                            ],
+                            feedback: {
+                              goodPoints: ["相手の課題に合わせて事例を分かりやすく説明できていました。"],
+                              improvements: ["導入後の運用イメージを具体例で添えるとさらに説得力が増します。"],
+                              nextAdvice: "次回は撮影日の候補を2つ用意して提案しましょう。",
+                            },
+                          };
+                          setPreviewRecordings((prev) => [newRec, ...prev]);
+                          setRecTitleInput("");
+                          setPreviewRecSec(0);
+                          setSelectedRecId(newId);
+                          notify("録音を保存し、AI解析を完了しました（プレビュー）");
+                        }}
+                        className="flex min-h-[46px] items-center gap-2 rounded-2xl bg-[#1C1A16] px-4 text-sm font-extrabold text-white"
+                      >
+                        <Square className="h-4 w-4 fill-current text-red-400" />
+                        <span>停止して解析</span>
+                      </button>
+                    )}
+                  </div>
+                </section>
+
+                <div className="space-y-2.5">
+                  <p className="text-sm font-extrabold">録音一覧</p>
+                  {previewRecordings.map((rec) => {
+                    const doneCount = rec.tasks.filter((t) => t.done).length;
+                    return (
+                      <button
+                        key={rec.id}
+                        type="button"
+                        onClick={() => setSelectedRecId(rec.id)}
+                        className="w-full rounded-2xl border-2 border-[#D5CEC0] bg-white p-3.5 text-left"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm font-extrabold">{rec.title}</p>
+                          <span className="rounded-lg bg-[#EFEAE0] px-2 py-0.5 text-[11px] font-extrabold tabular-nums">
+                            {fmtSec(rec.durationSec)}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-bold text-[#575249]">
+                          <span>{rec.recordedAt}</span>
+                          <span>・担当：{rec.ownerName}</span>
+                          <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-extrabold text-blue-950">
+                            タスク {doneCount}/{rec.tasks.length}
+                          </span>
+                        </div>
+                        <p className="mt-2 line-clamp-2 text-xs text-[#474239]">{rec.summaryPoints[0]}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
+          {(activeTab === "training" || activeTab === "menu") && (
             <section className="gurupo-screen-enter rounded-2xl border-2 border-[#D5CEC0] bg-white p-5">
               <p className="text-xs font-extrabold text-[#B93818]">準備中（プレビュー範囲外）</p>
               <h2 className="mt-1 text-lg font-extrabold">
-                {activeTab === "training" && "研修ライブラリ"}
-                {activeTab === "menu" && "メニュー"}
+                {activeTab === "training" ? "研修ライブラリ" : "メニュー"}
               </h2>
               <p className="mt-2 text-xs font-medium text-[#575249]">
-                現在このプレビューでは「ホーム」「店舗」「予定」を確認できます。
+                現在このプレビューでは「ホーム」「店舗」「予定」「取材」を確認できます。
               </p>
             </section>
           )}
@@ -1535,7 +1883,7 @@ export function PublicPreviewShell() {
           aria-label="下部ナビゲーション"
           className="fixed bottom-0 left-1/2 z-30 w-full max-w-md -translate-x-1/2 border-t-2 border-[#D5CEC0] bg-[#FBF9F4]/98 px-2 pb-2 pt-1.5 backdrop-blur"
         >
-          <div className="grid grid-cols-5 gap-1">
+          <div className="grid grid-cols-6 gap-0.5">
             {NAV_ITEMS.map((item) => {
               const Icon = item.icon;
               const active = activeTab === item.id;
@@ -1548,9 +1896,9 @@ export function PublicPreviewShell() {
                     active ? "bg-[#D94E2B]/12 text-[#B93818]" : "text-[#474239] hover:bg-[#EFEAE0]"
                   }`}
                 >
-                  {active && <span aria-hidden="true" className="absolute inset-x-3 top-0 h-[3px] rounded-full bg-[#D94E2B]" />}
+                  {active && <span aria-hidden="true" className="absolute inset-x-2.5 top-0 h-[3px] rounded-full bg-[#D94E2B]" />}
                   <Icon className="h-5 w-5" strokeWidth={active ? 2.4 : 1.9} />
-                  <span className={`text-[11px] leading-none ${active ? "font-extrabold" : "font-bold"}`}>{item.label}</span>
+                  <span className={`text-[10px] leading-none ${active ? "font-extrabold" : "font-bold"}`}>{item.label}</span>
                 </button>
               );
             })}

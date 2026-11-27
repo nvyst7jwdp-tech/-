@@ -1,5 +1,5 @@
 import React from "react";
-import { Home, Store, CalendarDays, BookOpen, Menu, LogOut } from "lucide-react";
+import { Home, Store, CalendarDays, Mic, BookOpen, Menu, LogOut } from "lucide-react";
 import type { AppTab, UserProfile } from "../types/gurupo";
 
 const ROLE_LABELS = {
@@ -12,6 +12,7 @@ const NAV_ITEMS: { id: AppTab; label: string; icon: React.ComponentType<{ classN
   { id: "today", label: "ホーム", icon: Home },
   { id: "stores", label: "店舗", icon: Store },
   { id: "visit", label: "予定", icon: CalendarDays },
+  { id: "recording", label: "取材", icon: Mic },
   { id: "training", label: "研修", icon: BookOpen },
   { id: "menu", label: "メニュー", icon: Menu },
 ];
@@ -61,9 +62,9 @@ export function AppShell({
 
         <nav
           aria-label="下部ナビゲーション"
-          className="fixed bottom-0 left-1/2 z-30 w-full max-w-md -translate-x-1/2 border-t-2 border-[#D5CEC0] bg-[#FBF9F4]/98 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-1.5 backdrop-blur"
+          className="fixed bottom-0 left-1/2 z-30 w-full max-w-md -translate-x-1/2 border-t-2 border-[#D5CEC0] bg-[#FBF9F4]/98 px-1.5 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-1.5 backdrop-blur"
         >
-          <div className="grid grid-cols-5 gap-1">
+          <div className="grid grid-cols-6 gap-0.5">
             {NAV_ITEMS.map((item) => {
               const Icon = item.icon;
               const active = activeTab === item.id;
@@ -80,11 +81,11 @@ export function AppShell({
                   {active && (
                     <span
                       aria-hidden="true"
-                      className="absolute inset-x-3 top-0 h-[3px] rounded-full bg-[#D94E2B]"
+                      className="absolute inset-x-2.5 top-0 h-[3px] rounded-full bg-[#D94E2B]"
                     />
                   )}
                   <Icon className="h-5 w-5" strokeWidth={active ? 2.4 : 1.9} />
-                  <span className={`text-[11px] leading-none ${active ? "font-extrabold" : "font-bold"}`}>
+                  <span className={`text-[10px] leading-none ${active ? "font-extrabold" : "font-bold"}`}>
                     {item.label}
                   </span>
                 </button>

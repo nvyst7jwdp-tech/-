@@ -1,6 +1,6 @@
 export type UserRole = "member" | "manager" | "admin";
 
-export type AppTab = "today" | "stores" | "visit" | "training" | "menu";
+export type AppTab = "today" | "stores" | "visit" | "recording" | "training" | "menu";
 
 export interface UserProfile {
   uid: string;
