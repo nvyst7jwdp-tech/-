@@ -43,6 +43,7 @@ import {
   Volume2,
   Clock,
   User,
+  CalendarClock,
 } from "lucide-react";
 
 const INITIAL_ANNOUNCEMENTS = [
@@ -186,6 +187,8 @@ const INITIAL_PREVIEW_RECORDINGS = [
   {
     id: "rec-1",
     title: "サンプル店舗A 初回商談",
+    storeName: "サンプル店舗A",
+    status: "completed",
     ownerName: "佐藤 健太",
     recordedAt: "11/26 10:45",
     durationSec: 412,
@@ -214,6 +217,8 @@ const INITIAL_PREVIEW_RECORDINGS = [
   {
     id: "rec-2",
     title: "サンプル食堂B フォロー架電",
+    storeName: "サンプル食堂B",
+    status: "completed",
     ownerName: "佐藤 健太",
     recordedAt: "11/25 16:20",
     durationSec: 185,
@@ -288,6 +293,7 @@ export function PublicPreviewShell() {
   const [previewRecordings, setPreviewRecordings] = useState(INITIAL_PREVIEW_RECORDINGS);
   const [selectedRecId, setSelectedRecId] = useState<string | null>(null);
   const [recTitleInput, setRecTitleInput] = useState("");
+  const [selectedRecStore, setSelectedRecStore] = useState("サンプル食堂B");
   const [isPreviewRecording, setIsPreviewRecording] = useState(false);
   const [previewRecSec, setPreviewRecSec] = useState(0);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
@@ -1602,6 +1608,12 @@ export function PublicPreviewShell() {
           {activeTab === "recording" && (() => {
             const selectedRec = previewRecordings.find((r) => r.id === selectedRecId) || null;
             const fmtSec = (sec: number) => `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(sec % 60).padStart(2, "0")}`;
+            const todayApptOptions = [
+              { id: "ap-1", time: "13:30", name: "サンプル食堂B", address: "大阪府大阪市北区2-8-10" },
+              { id: "ap-2", time: "16:30", name: "サンプル居酒屋D", address: "大阪府大阪市中央区1-9-4" },
+            ];
+            const nextAppt = todayApptOptions[0];
+
             if (selectedRec) {
               const doneCount = selectedRec.tasks.filter((t) => t.done).length;
               return (
@@ -1619,7 +1631,20 @@ export function PublicPreviewShell() {
                   </button>
 
                   <section className="rounded-2xl border-2 border-[#1C1A16] bg-white p-4">
-                    <h2 className="text-base font-extrabold">{selectedRec.title}</h2>
+                    <div className="flex items-start justify-between gap-2">
+                      <h2 className="text-base font-extrabold">{selectedRec.title}</h2>
+                      {selectedRec.status === "processing" ? (
+                        <span className="flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-extrabold text-amber-900">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          <span>処理中</span>
+                        </span>
+                      ) : (
+                        <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-extrabold text-emerald-900">
+                          <CheckCircle2 className="h-3 w-3" />
+                          <span>解析完了</span>
+                        </span>
+                      )}
+                    </div>
                     <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs font-bold text-[#575249]">
                       <span className="flex items-center gap-1">
                         <Clock className="h-3.5 w-3.5" />
@@ -1629,6 +1654,12 @@ export function PublicPreviewShell() {
                         <User className="h-3.5 w-3.5" />
                         {selectedRec.ownerName}
                       </span>
+                      {selectedRec.storeName && (
+                        <span className="flex items-center gap-1 text-[#B93818]">
+                          <Store className="h-3.5 w-3.5" />
+                          {selectedRec.storeName}
+                        </span>
+                      )}
                     </div>
 
                     <div className="mt-3 rounded-xl border border-[#D5CEC0] bg-[#FBF9F4] p-3">
@@ -1656,97 +1687,109 @@ export function PublicPreviewShell() {
                     </div>
                   </section>
 
-                  <section className="rounded-2xl border-2 border-[#D5CEC0] bg-white p-4">
-                    <h3 className="flex items-center gap-1.5 text-sm font-extrabold">
-                      <Sparkles className="h-4 w-4 text-[#D94E2B]" />
-                      <span>要点サマリー（{selectedRec.summaryPoints.length}件）</span>
-                    </h3>
-                    <ul className="mt-2.5 space-y-2">
-                      {selectedRec.summaryPoints.map((pt, i) => (
-                        <li key={i} className="flex items-start gap-2 rounded-xl bg-[#FBF9F4] px-3 py-2 text-xs font-bold leading-relaxed">
-                          <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#1C1A16] text-[10px] font-extrabold text-white">
-                            {i + 1}
+                  {selectedRec.status === "processing" ? (
+                    <div className="flex items-start gap-2.5 rounded-2xl border-2 border-amber-300 bg-amber-50 p-4 text-xs font-bold text-amber-950">
+                      <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-amber-700" />
+                      <div>
+                        <p className="font-extrabold">サーバー（Cloud Functions）で解析中です</p>
+                        <p className="mt-0.5 text-[11px] text-amber-900">このまま他画面へ移動しても処理は継続され、完了すると自動反映されます。</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <section className="rounded-2xl border-2 border-[#D5CEC0] bg-white p-4">
+                        <h3 className="flex items-center gap-1.5 text-sm font-extrabold">
+                          <Sparkles className="h-4 w-4 text-[#D94E2B]" />
+                          <span>要点サマリー（{selectedRec.summaryPoints.length}件）</span>
+                        </h3>
+                        <ul className="mt-2.5 space-y-2">
+                          {selectedRec.summaryPoints.map((pt, i) => (
+                            <li key={i} className="flex items-start gap-2 rounded-xl bg-[#FBF9F4] px-3 py-2 text-xs font-bold leading-relaxed">
+                              <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#1C1A16] text-[10px] font-extrabold text-white">
+                                {i + 1}
+                              </span>
+                              <span>{pt}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+
+                      <section className="rounded-2xl border-2 border-[#D5CEC0] bg-white p-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="flex items-center gap-1.5 text-sm font-extrabold">
+                            <ListChecks className="h-4 w-4 text-[#2563EB]" />
+                            <span>抽出タスク（やるべきこと）</span>
+                          </h3>
+                          <span className="rounded-full bg-[#EFEAE0] px-2.5 py-0.5 text-[11px] font-extrabold tabular-nums text-[#474239]">
+                            {doneCount} / {selectedRec.tasks.length} 完了
                           </span>
-                          <span>{pt}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
+                        </div>
+                        <div className="mt-2.5 space-y-2">
+                          {selectedRec.tasks.map((task) => (
+                            <button
+                              key={task.id}
+                              type="button"
+                              onClick={() => {
+                                setPreviewRecordings((prev) =>
+                                  prev.map((r) =>
+                                    r.id === selectedRec.id
+                                      ? {
+                                          ...r,
+                                          tasks: r.tasks.map((t) =>
+                                            t.id === task.id ? { ...t, done: !t.done } : t
+                                          ),
+                                        }
+                                      : r
+                                  )
+                                );
+                              }}
+                              className={`flex min-h-[42px] w-full items-start gap-2.5 rounded-xl border-2 px-3 py-2 text-left text-xs font-bold ${
+                                task.done
+                                  ? "border-emerald-300 bg-emerald-50 text-emerald-950 line-through opacity-75"
+                                  : "border-[#D5CEC0] bg-[#FBF9F4] text-[#1C1A16]"
+                              }`}
+                            >
+                              <CheckSquare className={`mt-0.5 h-4 w-4 shrink-0 ${task.done ? "text-emerald-600" : "text-[#8A8377]"}`} />
+                              <span>{task.text}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </section>
 
-                  <section className="rounded-2xl border-2 border-[#D5CEC0] bg-white p-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="flex items-center gap-1.5 text-sm font-extrabold">
-                        <ListChecks className="h-4 w-4 text-[#2563EB]" />
-                        <span>抽出タスク（やるべきこと）</span>
-                      </h3>
-                      <span className="rounded-full bg-[#EFEAE0] px-2.5 py-0.5 text-[11px] font-extrabold tabular-nums text-[#474239]">
-                        {doneCount} / {selectedRec.tasks.length} 完了
-                      </span>
-                    </div>
-                    <div className="mt-2.5 space-y-2">
-                      {selectedRec.tasks.map((task) => (
-                        <button
-                          key={task.id}
-                          type="button"
-                          onClick={() => {
-                            setPreviewRecordings((prev) =>
-                              prev.map((r) =>
-                                r.id === selectedRec.id
-                                  ? {
-                                      ...r,
-                                      tasks: r.tasks.map((t) =>
-                                        t.id === task.id ? { ...t, done: !t.done } : t
-                                      ),
-                                    }
-                                  : r
-                              )
-                            );
-                          }}
-                          className={`flex min-h-[42px] w-full items-start gap-2.5 rounded-xl border-2 px-3 py-2 text-left text-xs font-bold ${
-                            task.done
-                              ? "border-emerald-300 bg-emerald-50 text-emerald-950 line-through opacity-75"
-                              : "border-[#D5CEC0] bg-[#FBF9F4] text-[#1C1A16]"
-                          }`}
-                        >
-                          <CheckSquare className={`mt-0.5 h-4 w-4 shrink-0 ${task.done ? "text-emerald-600" : "text-[#8A8377]"}`} />
-                          <span>{task.text}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </section>
-
-                  <section className="space-y-2.5 rounded-2xl border-2 border-[#D5CEC0] bg-white p-4">
-                    <h3 className="text-sm font-extrabold">AI営業フィードバック</h3>
-                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3">
-                      <p className="flex items-center gap-1.5 text-xs font-extrabold text-emerald-900">
-                        <ThumbsUp className="h-3.5 w-3.5" />
-                        <span>良かった点</span>
-                      </p>
-                      <ul className="mt-1 space-y-1 text-xs font-bold text-emerald-950">
-                        {selectedRec.feedback.goodPoints.map((g, i) => (
-                          <li key={i}>・{g}</li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3">
-                      <p className="flex items-center gap-1.5 text-xs font-extrabold text-amber-900">
-                        <Lightbulb className="h-3.5 w-3.5" />
-                        <span>改善のポイント</span>
-                      </p>
-                      <ul className="mt-1 space-y-1 text-xs font-bold text-amber-950">
-                        {selectedRec.feedback.improvements.map((imp, i) => (
-                          <li key={i}>・{imp}</li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div className="rounded-xl border border-[#D94E2B]/30 bg-[#FFF5F2] p-3">
-                      <p className="flex items-center gap-1.5 text-xs font-extrabold text-[#9A3412]">
-                        <ArrowRight className="h-3.5 w-3.5" />
-                        <span>次回への提案</span>
-                      </p>
-                      <p className="mt-1 text-xs font-bold text-[#1C1A16]">{selectedRec.feedback.nextAdvice}</p>
-                    </div>
-                  </section>
+                      <section className="space-y-2.5 rounded-2xl border-2 border-[#D5CEC0] bg-white p-4">
+                        <h3 className="text-sm font-extrabold">AI営業フィードバック</h3>
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3">
+                          <p className="flex items-center gap-1.5 text-xs font-extrabold text-emerald-900">
+                            <ThumbsUp className="h-3.5 w-3.5" />
+                            <span>良かった点</span>
+                          </p>
+                          <ul className="mt-1 space-y-1 text-xs font-bold text-emerald-950">
+                            {selectedRec.feedback.goodPoints.map((g, i) => (
+                              <li key={i}>・{g}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3">
+                          <p className="flex items-center gap-1.5 text-xs font-extrabold text-amber-900">
+                            <Lightbulb className="h-3.5 w-3.5" />
+                            <span>改善のポイント</span>
+                          </p>
+                          <ul className="mt-1 space-y-1 text-xs font-bold text-amber-950">
+                            {selectedRec.feedback.improvements.map((imp, i) => (
+                              <li key={i}>・{imp}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div className="rounded-xl border border-[#D94E2B]/30 bg-[#FFF5F2] p-3">
+                          <p className="flex items-center gap-1.5 text-xs font-extrabold text-[#9A3412]">
+                            <ArrowRight className="h-3.5 w-3.5" />
+                            <span>次回への提案</span>
+                          </p>
+                          <p className="mt-1 text-xs font-bold text-[#1C1A16]">{selectedRec.feedback.nextAdvice}</p>
+                        </div>
+                      </section>
+                    </>
+                  )}
                 </div>
               );
             }
@@ -1760,15 +1803,45 @@ export function PublicPreviewShell() {
                   </span>
                 </div>
 
+                <section className="rounded-2xl border-2 border-[#D94E2B] bg-[#FFF5F2] p-3.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5 text-xs font-extrabold text-[#9A3412]">
+                      <CalendarClock className="h-4 w-4 text-[#D94E2B]" />
+                      <span>次のアポ（最優先）</span>
+                    </span>
+                    <span className="rounded-lg bg-[#D94E2B] px-2 py-0.5 text-xs font-extrabold tabular-nums text-white">
+                      {nextAppt.time}
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-sm font-extrabold text-[#1C1A16]">{nextAppt.name}</p>
+                  <p className="mt-0.5 text-[11px] font-bold text-[#575249]">{nextAppt.address}</p>
+                </section>
+
                 <section className="space-y-3 rounded-2xl border-2 border-[#1C1A16] bg-white p-4">
                   <div>
-                    <p className="text-xs font-extrabold text-[#474239]">タイトル・店舗名（任意）</p>
+                    <p className="text-xs font-extrabold text-[#474239]">紐づける店舗（本日のアポ）</p>
+                    <select
+                      value={selectedRecStore}
+                      onChange={(e) => setSelectedRecStore(e.target.value)}
+                      disabled={isPreviewRecording}
+                      className="mt-1 min-h-[42px] w-full rounded-xl border-2 border-[#D5CEC0] bg-[#FBF9F4] px-3 text-sm font-bold"
+                    >
+                      <option value="">店舗を選択しない</option>
+                      {todayApptOptions.map((ap) => (
+                        <option key={ap.id} value={ap.name}>
+                          {ap.time} {ap.name}{ap.name === nextAppt.name ? "（次のアポ）" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <p className="text-xs font-extrabold text-[#474239]">タイトル（任意・未入力時は店舗名から自動設定）</p>
                     <input
                       type="text"
                       value={recTitleInput}
                       onChange={(e) => setRecTitleInput(e.target.value)}
                       disabled={isPreviewRecording}
-                      placeholder="例：サンプル居酒屋C 初回商談"
+                      placeholder={selectedRecStore ? `例：${selectedRecStore} 初回取材` : "例：サンプル居酒屋C 初回取材"}
                       className="mt-1 min-h-[42px] w-full rounded-xl border-2 border-[#D5CEC0] bg-[#FBF9F4] px-3 text-sm font-bold"
                     />
                   </div>
@@ -1797,21 +1870,17 @@ export function PublicPreviewShell() {
                         onClick={() => {
                           setIsPreviewRecording(false);
                           const newId = "rec-" + Date.now();
+                          const storeLabel = selectedRecStore;
                           const newRec = {
                             id: newId,
-                            title: recTitleInput.trim() || "新規商談録音（プレビュー）",
+                            title: recTitleInput.trim() || (storeLabel ? `${storeLabel} 取材` : "新規取材録音（プレビュー）"),
+                            storeName: storeLabel,
                             ownerName: "佐藤 健太",
                             recordedAt: "たった今",
                             durationSec: Math.max(3, previewRecSec),
-                            summaryPoints: [
-                              "お店の看板メニューとターゲット客層についてヒアリングを実施",
-                              "写真撮影サポートと掲載手順について前向きな反応を得た",
-                              "来週中に導入可否の最終確認を行う流れとなった",
-                            ],
-                            tasks: [
-                              { id: "nt-1", text: "導入事例と料金プランをメール送付する", done: false },
-                              { id: "nt-2", text: "来週水曜にフォロー架電する", done: false },
-                            ],
+                            status: "processing",
+                            summaryPoints: []: string[],
+                            tasks: []: { id: string; text: string; done: boolean }[],
                             feedback: {
                               goodPoints: ["相手の課題に合わせて事例を分かりやすく説明できていました。"],
                               improvements: ["導入後の運用イメージを具体例で添えるとさらに説得力が増します。"],
@@ -1821,20 +1890,41 @@ export function PublicPreviewShell() {
                           setPreviewRecordings((prev) => [newRec, ...prev]);
                           setRecTitleInput("");
                           setPreviewRecSec(0);
-                          setSelectedRecId(newId);
-                          notify("録音を保存し、AI解析を完了しました（プレビュー）");
+                          notify("アップロード完了！裏側でAI解析中です（他の操作ができます）");
+                          setTimeout(() => {
+                            setPreviewRecordings((prev) =>
+                              prev.map((r) =>
+                                r.id === newId
+                                  ? {
+                                      ...r,
+                                      status: "completed",
+                                      summaryPoints: [
+                                        "お店の看板メニューとターゲット客層についてヒアリングを実施",
+                                        "写真撮影サポートと掲載手順について前向きな反応を得た",
+                                        "来週中に導入可否の最終確認を行う流れとなった",
+                                      ],
+                                      tasks: [
+                                        { id: "nt-1", text: "導入事例と料金プランをメール送付する", done: false },
+                                        { id: "nt-2", text: "来週水曜にフォロー架電する", done: false },
+                                      ],
+                                    }
+                                  : r
+                              )
+                            );
+                            notify("AI解析が完了し、一覧へ自動反映されました");
+                          }, 2500);
                         }}
                         className="flex min-h-[46px] items-center gap-2 rounded-2xl bg-[#1C1A16] px-4 text-sm font-extrabold text-white"
                       >
                         <Square className="h-4 w-4 fill-current text-red-400" />
-                        <span>停止して解析</span>
+                        <span>停止して保存</span>
                       </button>
                     )}
                   </div>
                 </section>
 
                 <div className="space-y-2.5">
-                  <p className="text-sm font-extrabold">録音一覧</p>
+                  <p className="text-sm font-extrabold">録音一覧（リアルタイム更新）</p>
                   {previewRecordings.map((rec) => {
                     const doneCount = rec.tasks.filter((t) => t.done).length;
                     return (
@@ -1846,18 +1936,39 @@ export function PublicPreviewShell() {
                       >
                         <div className="flex items-start justify-between gap-2">
                           <p className="text-sm font-extrabold">{rec.title}</p>
-                          <span className="rounded-lg bg-[#EFEAE0] px-2 py-0.5 text-[11px] font-extrabold tabular-nums">
-                            {fmtSec(rec.durationSec)}
-                          </span>
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            {rec.status === "processing" && (
+                              <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-extrabold text-amber-900">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                <span>処理中</span>
+                              </span>
+                            )}
+                            <span className="rounded-lg bg-[#EFEAE0] px-2 py-0.5 text-[11px] font-extrabold tabular-nums">
+                              {fmtSec(rec.durationSec)}
+                            </span>
+                          </div>
                         </div>
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-bold text-[#575249]">
                           <span>{rec.recordedAt}</span>
                           <span>・担当：{rec.ownerName}</span>
-                          <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-extrabold text-blue-950">
-                            タスク {doneCount}/{rec.tasks.length}
-                          </span>
+                          {rec.storeName && (
+                            <span className="rounded bg-[#FFF5F2] px-1.5 py-0.5 text-[10px] font-extrabold text-[#B93818]">
+                              {rec.storeName}
+                            </span>
+                          )}
+                          {rec.tasks.length > 0 && (
+                            <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-extrabold text-blue-950">
+                              タスク {doneCount}/{rec.tasks.length}
+                            </span>
+                          )}
                         </div>
-                        <p className="mt-2 line-clamp-2 text-xs text-[#474239]">{rec.summaryPoints[0]}</p>
+                        {rec.status === "processing" ? (
+                          <p className="mt-2 text-xs font-bold text-amber-800">サーバーで要約・タスク・フィードバックを生成中です...</p>
+                        ) : (
+                          rec.summaryPoints[0] && (
+                            <p className="mt-2 line-clamp-2 text-xs text-[#474239]">{rec.summaryPoints[0]}</p>
+                          )
+                        )}
                       </button>
                     );
                   })}
