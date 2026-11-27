@@ -142,6 +142,64 @@ export function subscribeRecordings(
   );
 }
 
+async function runBackgroundServerAnalysis(params: {
+  recordingId: string;
+  audioUrl: string;
+  mimeType: string;
+  title: string;
+  storeName?: string;
+  speakerName: string;
+}): Promise<void> {
+  if (!db) return;
+  const docRef = doc(db, "recordings", params.recordingId);
+  try {
+    const res = await fetch("/api/analyze-recording", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        audioUrl: params.audioUrl,
+        mimeType: params.mimeType,
+        title: params.title,
+        storeName: params.storeName ?? "",
+        speakerName: params.speakerName,
+      }),
+    });
+    const data = (await res.json()) as {
+      error?: string;
+      summaryPoints?: string[];
+      tasks?: string[];
+      feedback?: RecordingFeedback;
+    };
+    if (!res.ok) {
+      throw new Error(data.error || "サーバーでのAI解析に失敗しました。");
+    }
+
+    const tasks: RecordingTaskItem[] = Array.isArray(data.tasks)
+      ? data.tasks.map((text, idx) => ({
+          id: `t-${Date.now()}-${idx}`,
+          text: String(text),
+          done: false,
+        }))
+      : [];
+
+    await updateDoc(docRef, {
+      status: "completed",
+      summaryPoints: Array.isArray(data.summaryPoints) ? data.summaryPoints : [],
+      tasks,
+      feedback: data.feedback ?? null,
+      analysisError: "",
+      processedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "AI解析に失敗しました。";
+    await updateDoc(docRef, {
+      status: "error",
+      analysisError: msg,
+      processedAt: new Date().toISOString(),
+    });
+  }
+}
+
 export async function uploadRecordingOnly(params: {
   profile: UserProfile;
   audioBlob: Blob;
@@ -196,6 +254,17 @@ export async function uploadRecordingOnly(params: {
   };
 
   const docRef = await addDoc(collection(db, "recordings"), payload);
+
+  // 画面をブロックせず、Vercelサーバー(/api/analyze-recording)での非同期解析を開始
+  void runBackgroundServerAnalysis({
+    recordingId: docRef.id,
+    audioUrl,
+    mimeType,
+    title: displayTitle,
+    storeName,
+    speakerName: profile.name,
+  });
+
   return {
     id: docRef.id,
     ...payload,

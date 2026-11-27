@@ -1691,7 +1691,7 @@ export function PublicPreviewShell() {
                     <div className="flex items-start gap-2.5 rounded-2xl border-2 border-amber-300 bg-amber-50 p-4 text-xs font-bold text-amber-950">
                       <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-amber-700" />
                       <div>
-                        <p className="font-extrabold">サーバー（Cloud Functions）で解析中です</p>
+                        <p className="font-extrabold">サーバー（Vercel）で解析中です</p>
                         <p className="mt-0.5 text-[11px] text-amber-900">このまま他画面へ移動しても処理は継続され、完了すると自動反映されます。</p>
                       </div>
                     </div>
@@ -1879,8 +1879,8 @@ export function PublicPreviewShell() {
                             recordedAt: "たった今",
                             durationSec: Math.max(3, previewRecSec),
                             status: "processing",
-                            summaryPoints: []: string[],
-                            tasks: []: { id: string; text: string; done: boolean }[],
+                            summaryPoints: [] as string[],
+                            tasks: [] as { id: string; text: string; done: boolean }[],
                             feedback: {
                               goodPoints: ["相手の課題に合わせて事例を分かりやすく説明できていました。"],
                               improvements: ["導入後の運用イメージを具体例で添えるとさらに説得力が増します。"],
