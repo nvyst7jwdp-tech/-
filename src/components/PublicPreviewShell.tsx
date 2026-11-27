@@ -45,6 +45,8 @@ import {
   User,
   CalendarClock,
   Camera,
+  MessageSquareText,
+  FileText,
 } from "lucide-react";
 
 const INITIAL_ANNOUNCEMENTS = [
