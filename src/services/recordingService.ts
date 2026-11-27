@@ -15,6 +15,7 @@ import { db, storage } from "../lib/firebase";
 import type { UserProfile } from "../types/gurupo";
 
 export type RecordingStatus = "processing" | "completed" | "error";
+export type InterviewOutcome = "掲載のみ" | "再対応" | "契約済み";
 
 export interface RecordingFeedback {
   goodPoints: string[];
@@ -34,6 +35,7 @@ export interface RecordingRecord {
   ownerUid: string;
   ownerName: string;
   recordedAt: string;
+  interviewDate: string;
   durationSec: number;
   audioUrl: string;
   storagePath: string;
@@ -41,6 +43,9 @@ export interface RecordingRecord {
   status: RecordingStatus;
   storeId?: string;
   storeName?: string;
+  outcome?: InterviewOutcome;
+  followUpDate?: string;
+  followUpTime?: string;
   summaryPoints: string[];
   tasks: RecordingTaskItem[];
   feedback: RecordingFeedback | null;
@@ -48,7 +53,7 @@ export interface RecordingRecord {
   processedAt?: string;
 }
 
-export interface TodayAppointmentStore {
+export interface ScheduledInterviewStore {
   id: string;
   name: string;
   address: string;
@@ -59,17 +64,11 @@ export interface TodayAppointmentStore {
   ownerUid: string;
 }
 
-function getLocalTodayYmd(now = new Date()): string {
+export function getLocalTodayYmd(now = new Date()): string {
   const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, "0");
   const d = String(now.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
-}
-
-function getLocalNowHm(now = new Date()): string {
-  const h = String(now.getHours()).padStart(2, "0");
-  const m = String(now.getMinutes()).padStart(2, "0");
-  return `${h}:${m}`;
 }
 
 function mapRecordingDoc(id: string, data: Record<string, unknown>): RecordingRecord {
@@ -77,13 +76,28 @@ function mapRecordingDoc(id: string, data: Record<string, unknown>): RecordingRe
   const status: RecordingStatus =
     rawStatus === "processing" || rawStatus === "error" ? rawStatus : "completed";
 
+  const rawOutcome = String(data.outcome ?? "");
+  const outcome: InterviewOutcome | undefined =
+    rawOutcome === "掲載のみ" || rawOutcome === "再対応" || rawOutcome === "契約済み"
+      ? rawOutcome
+      : undefined;
+
+  const recordedAt = String(data.recordedAt ?? "");
+  const interviewDate =
+    typeof data.interviewDate === "string" && data.interviewDate
+      ? data.interviewDate
+      : recordedAt
+      ? recordedAt.slice(0, 10)
+      : getLocalTodayYmd();
+
   const fb = data.feedback as Record<string, unknown> | null | undefined;
   return {
     id,
     title: String(data.title ?? "取材録音"),
     ownerUid: String(data.ownerUid ?? ""),
     ownerName: String(data.ownerName ?? ""),
-    recordedAt: String(data.recordedAt ?? ""),
+    recordedAt,
+    interviewDate,
     durationSec: typeof data.durationSec === "number" ? data.durationSec : 0,
     audioUrl: String(data.audioUrl ?? ""),
     storagePath: String(data.storagePath ?? ""),
@@ -91,6 +105,11 @@ function mapRecordingDoc(id: string, data: Record<string, unknown>): RecordingRe
     status,
     storeId: typeof data.storeId === "string" && data.storeId ? data.storeId : undefined,
     storeName: typeof data.storeName === "string" && data.storeName ? data.storeName : undefined,
+    outcome,
+    followUpDate:
+      typeof data.followUpDate === "string" && data.followUpDate ? data.followUpDate : undefined,
+    followUpTime:
+      typeof data.followUpTime === "string" && data.followUpTime ? data.followUpTime : undefined,
     summaryPoints: Array.isArray(data.summaryPoints)
       ? data.summaryPoints.map(String)
       : [],
@@ -137,7 +156,7 @@ export function subscribeRecordings(
       onChange(list);
     },
     (err) => {
-      onError(err instanceof Error ? err : new Error("録音一覧の取得に失敗しました。"));
+      onError(err instanceof Error ? err : new Error("取材一覧の取得に失敗しました。"));
     }
   );
 }
@@ -214,6 +233,7 @@ export async function uploadRecordingOnly(params: {
   }
   const { profile, audioBlob, mimeType, durationSec, storeId, storeName } = params;
   const recordedAt = new Date().toISOString();
+  const interviewDate = getLocalTodayYmd();
   const ext = mimeType.includes("mp4") ? "m4a" : mimeType.includes("ogg") ? "ogg" : "webm";
   const storagePath = `recordings/${profile.uid}/${Date.now()}.${ext}`;
   const storageRef = ref(storage, storagePath);
@@ -240,6 +260,7 @@ export async function uploadRecordingOnly(params: {
     ownerUid: profile.uid,
     ownerName: profile.name,
     recordedAt,
+    interviewDate,
     durationSec,
     audioUrl,
     storagePath,
@@ -255,7 +276,7 @@ export async function uploadRecordingOnly(params: {
 
   const docRef = await addDoc(collection(db, "recordings"), payload);
 
-  // 画面をブロックせず、Vercelサーバー(/api/analyze-recording)での非同期解析を開始
+  // 音声保存後、サーバー(/api/analyze-recording)へ重いAI解析を非同期でオフロード
   void runBackgroundServerAnalysis({
     recordingId: docRef.id,
     audioUrl,
@@ -274,6 +295,84 @@ export async function uploadRecordingOnly(params: {
   };
 }
 
+export async function completeInterviewOutcome(params: {
+  profile: UserProfile;
+  recordingId: string | null;
+  storeId?: string;
+  storeName?: string;
+  outcome: InterviewOutcome;
+  followUpDate?: string;
+  followUpTime?: string;
+}): Promise<void> {
+  if (!db) throw new Error("データベースに接続できません。");
+  const { profile, recordingId, storeId, storeName, outcome, followUpDate, followUpTime } = params;
+  const todayYmd = getLocalTodayYmd();
+
+  if (recordingId) {
+    await updateDoc(doc(db, "recordings", recordingId), {
+      outcome,
+      followUpDate: outcome === "再対応" ? followUpDate ?? "" : "",
+      followUpTime: outcome === "再対応" ? followUpTime ?? "" : "",
+      interviewDate: todayYmd,
+    });
+  } else {
+    // 録音がスキップまたは未作成の場合も取材一覧に結果を残す
+    await addDoc(collection(db, "recordings"), {
+      title: storeName ? `${storeName} 取材` : `取材記録 ${todayYmd}`,
+      ownerUid: profile.uid,
+      ownerName: profile.name,
+      recordedAt: new Date().toISOString(),
+      interviewDate: todayYmd,
+      durationSec: 0,
+      audioUrl: "",
+      storagePath: "",
+      mimeType: "",
+      status: "completed",
+      storeId: storeId ?? "",
+      storeName: storeName ?? "",
+      outcome,
+      followUpDate: outcome === "再対応" ? followUpDate ?? "" : "",
+      followUpTime: outcome === "再対応" ? followUpTime ?? "" : "",
+      summaryPoints: [],
+      tasks: [],
+      feedback: null,
+      analysisError: "",
+    });
+  }
+
+  if (storeId) {
+    if (outcome === "掲載のみ") {
+      await updateDoc(doc(db, "stores", storeId), {
+        status: "掲載のみ",
+        appointmentDate: "",
+        appointmentTime: "",
+        contractDate: "",
+        situation: `取材完了（${todayYmd}）：掲載のみ`,
+      });
+    } else if (outcome === "契約済み") {
+      await updateDoc(doc(db, "stores", storeId), {
+        status: "契約済み",
+        appointmentDate: "",
+        appointmentTime: "",
+        contractDate: todayYmd,
+        situation: `取材完了（${todayYmd}）：契約済み`,
+      });
+    } else {
+      const nextDate = followUpDate || todayYmd;
+      const nextTime = followUpTime || "";
+      await updateDoc(doc(db, "stores", storeId), {
+        status: "アポ獲得",
+        appointmentDate: nextDate,
+        appointmentTime: nextTime,
+        interviewerUid: profile.uid,
+        interviewerName: profile.name,
+        contractDate: "",
+        situation: `取材後・再対応予定（${nextDate}${nextTime ? ` ${nextTime}` : ""}）`,
+      });
+    }
+  }
+}
+
 export async function updateRecordingTasks(
   recordingId: string,
   tasks: RecordingTaskItem[]
@@ -287,56 +386,45 @@ export async function deleteRecordingRecord(recordingId: string): Promise<void> 
   await deleteDoc(doc(db, "recordings", recordingId));
 }
 
-export async function fetchTodayAppointmentsForUser(
+export async function fetchScheduledInterviews(
   profile: UserProfile
-): Promise<TodayAppointmentStore[]> {
+): Promise<ScheduledInterviewStore[]> {
   if (!db) return [];
-  const today = getLocalTodayYmd();
   const isLeader = profile.role === "manager" || profile.role === "admin";
-
   const snap = await getDocs(
     query(collection(db, "stores"), where("status", "==", "アポ獲得"))
   );
 
-  const allToday = snap.docs
-    .map((d) => {
-      const data = d.data();
-      return {
-        id: d.id,
-        name: String(data.name ?? ""),
-        address: String(data.address ?? ""),
-        appointmentDate: String(data.appointmentDate ?? "").trim(),
-        appointmentTime: String(data.appointmentTime ?? "").trim(),
-        interviewerUid: String(data.interviewerUid ?? ""),
-        interviewerName: String(data.interviewerName ?? ""),
-        ownerUid: String(data.ownerUid ?? ""),
-      };
-    })
-    .filter((s) => s.appointmentDate === today);
+  const all = snap.docs.map((d) => {
+    const data = d.data();
+    return {
+      id: d.id,
+      name: String(data.name ?? ""),
+      address: String(data.address ?? ""),
+      appointmentDate: String(data.appointmentDate ?? "").trim(),
+      appointmentTime: String(data.appointmentTime ?? "").trim(),
+      interviewerUid: String(data.interviewerUid ?? ""),
+      interviewerName: String(data.interviewerName ?? ""),
+      ownerUid: String(data.ownerUid ?? ""),
+    };
+  });
 
-  const mine = allToday.filter(
-    (s) =>
-      s.interviewerUid === profile.uid ||
-      (!s.interviewerUid && s.ownerUid === profile.uid)
-  );
+  const filtered = isLeader
+    ? all
+    : all.filter(
+        (s) =>
+          s.interviewerUid === profile.uid ||
+          (!s.interviewerUid && s.ownerUid === profile.uid)
+      );
 
-  const list = mine.length > 0 ? mine : isLeader ? allToday : [];
-  return list.sort((a, b) =>
-    (a.appointmentTime || "99:99").localeCompare(b.appointmentTime || "99:99")
-  );
-}
-
-export function pickNextAppointment(
-  appointments: TodayAppointmentStore[],
-  now = new Date()
-): { next: TodayAppointmentStore | null; isUpcoming: boolean } {
-  if (appointments.length === 0) return { next: null, isUpcoming: false };
-  const nowHm = getLocalNowHm(now);
-  const upcoming = appointments.find(
-    (a) => (a.appointmentTime || "00:00") >= nowHm
-  );
-  if (upcoming) {
-    return { next: upcoming, isUpcoming: true };
-  }
-  return { next: appointments[appointments.length - 1], isUpcoming: false };
+  // 日程・時間が早いものから優先表示
+  return filtered.sort((a, b) => {
+    const da = a.appointmentDate || "9999-99-99";
+    const dbDate = b.appointmentDate || "9999-99-99";
+    if (da !== dbDate) return da.localeCompare(dbDate);
+    const ta = a.appointmentTime || "99:99";
+    const tb = b.appointmentTime || "99:99";
+    if (ta !== tb) return ta.localeCompare(tb);
+    return a.name.localeCompare(b.name, "ja");
+  });
 }

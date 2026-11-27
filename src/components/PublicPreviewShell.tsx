@@ -44,6 +44,7 @@ import {
   Clock,
   User,
   CalendarClock,
+  Camera,
 } from "lucide-react";
 
 const INITIAL_ANNOUNCEMENTS = [
@@ -188,6 +189,9 @@ const INITIAL_PREVIEW_RECORDINGS = [
     id: "rec-1",
     title: "サンプル店舗A 初回商談",
     storeName: "サンプル店舗A",
+    interviewDate: "2026-11-28",
+    outcome: "契約済み",
+    followUpDate: "",
     status: "completed",
     ownerName: "佐藤 健太",
     recordedAt: "11/26 10:45",
@@ -218,6 +222,9 @@ const INITIAL_PREVIEW_RECORDINGS = [
     id: "rec-2",
     title: "サンプル食堂B フォロー架電",
     storeName: "サンプル食堂B",
+    interviewDate: "2026-11-27",
+    outcome: "再対応",
+    followUpDate: "2026-11-30",
     status: "completed",
     ownerName: "佐藤 健太",
     recordedAt: "11/25 16:20",
@@ -294,6 +301,14 @@ export function PublicPreviewShell() {
   const [selectedRecId, setSelectedRecId] = useState<string | null>(null);
   const [recTitleInput, setRecTitleInput] = useState("");
   const [selectedRecStore, setSelectedRecStore] = useState("サンプル食堂B");
+  const [previewChosenStoreId, setPreviewChosenStoreId] = useState("ap-1");
+  const [previewInterviewActive, setPreviewInterviewActive] = useState(false);
+  const [previewStep, setPreviewStep] = useState<1 | 2 | 3 | 4 | 5>(1);
+  const [previewOutcome, setPreviewOutcome] = useState<"掲載のみ" | "再対応" | "契約済み">("掲載のみ");
+  const [previewFollowUpDate, setPreviewFollowUpDate] = useState("2026-12-03");
+  const [previewOutcomeFilter, setPreviewOutcomeFilter] = useState<"すべて" | "掲載のみ" | "再対応" | "契約済み">("すべて");
+  const [previewLastRecId, setPreviewLastRecId] = useState<string | null>(null);
+
   const [isPreviewRecording, setIsPreviewRecording] = useState(false);
   const [previewRecSec, setPreviewRecSec] = useState(0);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
@@ -1608,11 +1623,251 @@ export function PublicPreviewShell() {
           {activeTab === "recording" && (() => {
             const selectedRec = previewRecordings.find((r) => r.id === selectedRecId) || null;
             const fmtSec = (sec: number) => `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(sec % 60).padStart(2, "0")}`;
-            const todayApptOptions = [
-              { id: "ap-1", time: "13:30", name: "サンプル食堂B", address: "大阪府大阪市北区2-8-10" },
-              { id: "ap-2", time: "16:30", name: "サンプル居酒屋D", address: "大阪府大阪市中央区1-9-4" },
+            const apptList = [
+              { id: "ap-1", date: "2026-11-28", time: "13:30", name: "サンプル食堂B", address: "大阪府大阪市北区2-8-10" },
+              { id: "ap-2", date: "2026-11-28", time: "16:30", name: "サンプル居酒屋D", address: "大阪府大阪市中央区1-9-4" },
+              { id: "ap-3", date: "2026-11-29", time: "11:00", name: "サンプルカフェG", address: "大阪府大阪市西区3-1-2" },
             ];
-            const nextAppt = todayApptOptions[0];
+            const chosenAppt = apptList.find((a) => a.id === previewChosenStoreId) || apptList[0];
+            const steps = [
+              { id: 1, label: "ぐるポについて" },
+              { id: 2, label: "撮影" },
+              { id: 3, label: "インタビュー" },
+              { id: 4, label: "ぐるポの説明" },
+              { id: 5, label: "今後について" },
+            ];
+
+            if (previewInterviewActive) {
+              const moveStep = (next: 1 | 2 | 3 | 4 | 5) => {
+                if (next === 3 && previewStep < 3 && !isPreviewRecording) {
+                  setPreviewRecSec(0);
+                  setIsPreviewRecording(true);
+                  notify("インタビュー開始：自動で録音を開始しました");
+                }
+                if (previewStep === 4 && next === 5 && isPreviewRecording) {
+                  setIsPreviewRecording(false);
+                  const newId = "rec-" + Date.now();
+                  setPreviewLastRecId(newId);
+                  const newRec = {
+                    id: newId,
+                    title: `${chosenAppt.name} 取材`,
+                    storeName: chosenAppt.name,
+                    interviewDate: "2026-11-28",
+                    outcome: "掲載のみ",
+                    followUpDate: "",
+                    ownerName: "佐藤 健太",
+                    recordedAt: "たった今",
+                    durationSec: Math.max(5, previewRecSec),
+                    status: "processing",
+                    summaryPoints: [] as string[],
+                    tasks: [] as { id: string; text: string; done: boolean }[],
+                    feedback: {
+                      goodPoints: ["お店の強みを丁寧に引き出せていました。"],
+                      improvements: ["掲載スケジュールをより具体的に提示すると効果的です。"],
+                      nextAdvice: "次回は撮影カットの共有も添えましょう。",
+                    },
+                  };
+                  setPreviewRecordings((prev) => [newRec, ...prev]);
+                  setPreviewRecSec(0);
+                  notify("録音を自動停止・保存しました（裏側でAI要約を作成中）");
+                  setTimeout(() => {
+                    setPreviewRecordings((prev) =>
+                      prev.map((r) =>
+                        r.id === newId
+                          ? {
+                              ...r,
+                              status: "completed",
+                              summaryPoints: [
+                                "看板メニューの仕込みとこだわりについてヒアリング完了",
+                                "週末のディナー帯の集客強化を希望している",
+                                "掲載ページ公開前の原稿確認を希望",
+                              ],
+                              tasks: [
+                                { id: "nt-1", text: "取材記事と写真案を2営業日以内に送付する", done: false },
+                              ],
+                            }
+                          : r
+                      )
+                    );
+                  }, 2500);
+                }
+                setPreviewStep(next);
+              };
+
+              return (
+                <div className="gurupo-screen-enter space-y-4">
+                  {isPreviewRecording && (
+                    <div className="flex items-center justify-between rounded-2xl border-2 border-emerald-700 bg-emerald-600 px-4 py-2.5 text-white shadow-md">
+                      <div className="flex items-center gap-2">
+                        <span className="h-3 w-3 animate-pulse rounded-full bg-emerald-200" />
+                        <Mic className="h-4 w-4" />
+                        <span className="text-xs font-extrabold">録音中</span>
+                        <span className="rounded-lg bg-emerald-800/70 px-2 py-0.5 text-xs font-extrabold tabular-nums">
+                          {fmtSec(previewRecSec)}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsPreviewRecording(false)}
+                        className="rounded-xl bg-white px-3 py-1 text-[11px] font-extrabold text-emerald-800"
+                      >
+                        録音停止
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[11px] font-extrabold text-[#B93818]">取材進行中</p>
+                      <h1 className="text-lg font-extrabold">{chosenAppt.name}</h1>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsPreviewRecording(false);
+                        setPreviewInterviewActive(false);
+                      }}
+                      className="min-h-[36px] rounded-xl border-2 border-[#D5CEC0] bg-white px-3 text-xs font-extrabold text-[#575249]"
+                    >
+                      中断して戻る
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-5 gap-1 rounded-2xl border-2 border-[#D5CEC0] bg-[#EFEAE0] p-1.5">
+                    {steps.map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => moveStep(s.id as 1 | 2 | 3 | 4 | 5)}
+                        className={`flex min-h-[44px] flex-col items-center justify-center rounded-xl px-1 py-1 text-center ${
+                          previewStep === s.id
+                            ? "bg-[#1C1A16] text-white"
+                            : previewStep > s.id
+                            ? "bg-emerald-100 text-emerald-950"
+                            : "text-[#575249]"
+                        }`}
+                      >
+                        <span className="text-[10px] font-extrabold">{s.id}</span>
+                        <span className="mt-0.5 line-clamp-1 text-[9px] font-bold">{s.label}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {previewStep === 1 && (
+                    <section className="space-y-3 rounded-2xl border-2 border-[#1C1A16] bg-white p-4">
+                      <h2 className="text-base font-extrabold">1. ぐるポについて</h2>
+                      <p className="text-xs font-bold text-[#474239]">
+                        ご挨拶と本日の取材の流れ（撮影→インタビュー→掲載説明）をご案内します。
+                      </p>
+                      <button type="button" onClick={() => moveStep(2)} className="min-h-[44px] w-full rounded-xl bg-[#1C1A16] text-xs font-extrabold text-white">
+                        次へ（2. 撮影）
+                      </button>
+                    </section>
+                  )}
+
+                  {previewStep === 2 && (
+                    <section className="space-y-3 rounded-2xl border-2 border-[#1C1A16] bg-white p-4">
+                      <h2 className="flex items-center gap-1.5 text-base font-extrabold">
+                        <Camera className="h-4 w-4 text-[#D94E2B]" />
+                        <span>2. 撮影</span>
+                      </h2>
+                      <p className="text-xs font-bold text-[#474239]">外観・内観・看板メニューを撮影してください。</p>
+                      <button type="button" onClick={() => moveStep(3)} className="min-h-[44px] w-full rounded-xl bg-[#D94E2B] text-xs font-extrabold text-white">
+                        次へ（3. インタビュー・録音開始）
+                      </button>
+                    </section>
+                  )}
+
+                  {previewStep === 3 && (
+                    <section className="space-y-3 rounded-2xl border-2 border-[#1C1A16] bg-white p-4">
+                      <h2 className="flex items-center gap-1.5 text-base font-extrabold">
+                        <MessageSquareText className="h-4 w-4 text-[#D94E2B]" />
+                        <span>3. インタビュー</span>
+                      </h2>
+                      <div className="space-y-2">
+                        {[
+                          "お店のコンセプトや店名に込めた想い",
+                          "一番おすすめの看板メニュー・こだわり",
+                          "今後増やしたい客層や集客の課題",
+                        ].map((q, idx) => (
+                          <div key={idx} className="rounded-xl border border-[#D5CEC0] bg-[#FBF9F4] px-3 py-2 text-xs font-bold">
+                            Q{idx + 1}. {q}
+                          </div>
+                        ))}
+                      </div>
+                      <button type="button" onClick={() => moveStep(4)} className="min-h-[44px] w-full rounded-xl bg-[#1C1A16] text-xs font-extrabold text-white">
+                        次へ（4. ぐるポの説明）
+                      </button>
+                    </section>
+                  )}
+
+                  {previewStep === 4 && (
+                    <section className="space-y-3 rounded-2xl border-2 border-[#1C1A16] bg-white p-4">
+                      <h2 className="flex items-center gap-1.5 text-base font-extrabold">
+                        <FileText className="h-4 w-4 text-[#D94E2B]" />
+                        <span>4. ぐるポの説明（トークスクリプト）</span>
+                      </h2>
+                      <div className="rounded-xl border border-[#D5CEC0] bg-[#FBF9F4] p-3 text-xs font-bold leading-relaxed">
+                        「本日撮影した写真とインタビューを記事ページにまとめ、近隣のグルメ好きユーザーへお店のこだわりを届けます。」
+                      </div>
+                      <button type="button" onClick={() => moveStep(5)} className="min-h-[44px] w-full rounded-xl bg-[#D94E2B] text-xs font-extrabold text-white">
+                        説明を完了して次へ（録音自動停止）
+                      </button>
+                    </section>
+                  )}
+
+                  {previewStep === 5 && (
+                    <section className="space-y-3 rounded-2xl border-2 border-[#1C1A16] bg-white p-4">
+                      <h2 className="text-base font-extrabold">5. 今後について</h2>
+                      <div className="grid grid-cols-3 gap-2">
+                        {(["掲載のみ", "再対応", "契約済み"] as const).map((opt) => (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => setPreviewOutcome(opt)}
+                            className={`min-h-[44px] rounded-xl border-2 text-xs font-extrabold ${
+                              previewOutcome === opt ? "border-[#1C1A16] bg-[#1C1A16] text-white" : "border-[#D5CEC0] bg-[#FBF9F4]"
+                            }`}
+                          >
+                            {opt}
+                          </button>
+                        ))}
+                      </div>
+                      {previewOutcome === "再対応" && (
+                        <div className="rounded-xl border border-amber-300 bg-amber-50 p-3">
+                          <p className="text-xs font-extrabold text-amber-950">再対応の日程（仮日程可）</p>
+                          <input
+                            type="date"
+                            value={previewFollowUpDate}
+                            onChange={(e) => setPreviewFollowUpDate(e.target.value)}
+                            className="mt-1 min-h-[38px] w-full rounded-lg border border-amber-300 bg-white px-2 text-xs font-bold"
+                          />
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (previewLastRecId) {
+                            setPreviewRecordings((prev) =>
+                              prev.map((r) =>
+                                r.id === previewLastRecId
+                                  ? { ...r, outcome: previewOutcome, followUpDate: previewOutcome === "再対応" ? previewFollowUpDate : "" }
+                                  : r
+                              )
+                            );
+                          }
+                          setPreviewInterviewActive(false);
+                          notify(`「${chosenAppt.name}」の結果（${previewOutcome}）を保存し店舗へ反映しました`);
+                        }}
+                        className="min-h-[46px] w-full rounded-xl bg-emerald-700 text-xs font-extrabold text-white"
+                      >
+                        取材を完了して保存
+                      </button>
+                    </section>
+                  )}
+                </div>
+              );
+            }
 
             if (selectedRec) {
               const doneCount = selectedRec.tasks.filter((t) => t.done).length;
@@ -1627,21 +1882,15 @@ export function PublicPreviewShell() {
                     className="flex min-h-[40px] items-center gap-1 rounded-xl border-2 border-[#D5CEC0] bg-white px-3 text-xs font-extrabold text-[#1C1A16]"
                   >
                     <ChevronLeft className="h-4 w-4" />
-                    <span>録音一覧へ</span>
+                    <span>取材一覧へ</span>
                   </button>
 
                   <section className="rounded-2xl border-2 border-[#1C1A16] bg-white p-4">
                     <div className="flex items-start justify-between gap-2">
                       <h2 className="text-base font-extrabold">{selectedRec.title}</h2>
-                      {selectedRec.status === "processing" ? (
-                        <span className="flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-extrabold text-amber-900">
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                          <span>処理中</span>
-                        </span>
-                      ) : (
-                        <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-extrabold text-emerald-900">
-                          <CheckCircle2 className="h-3 w-3" />
-                          <span>解析完了</span>
+                      {selectedRec.outcome && (
+                        <span className="rounded-full bg-[#EFEAE0] px-2.5 py-0.5 text-[11px] font-extrabold text-[#1C1A16]">
+                          {selectedRec.outcome}
                         </span>
                       )}
                     </div>
@@ -1654,14 +1903,7 @@ export function PublicPreviewShell() {
                         <User className="h-3.5 w-3.5" />
                         {selectedRec.ownerName}
                       </span>
-                      {selectedRec.storeName && (
-                        <span className="flex items-center gap-1 text-[#B93818]">
-                          <Store className="h-3.5 w-3.5" />
-                          {selectedRec.storeName}
-                        </span>
-                      )}
                     </div>
-
                     <div className="mt-3 rounded-xl border border-[#D5CEC0] bg-[#FBF9F4] p-3">
                       <div className="flex items-center justify-between gap-3">
                         <button
@@ -1690,10 +1932,7 @@ export function PublicPreviewShell() {
                   {selectedRec.status === "processing" ? (
                     <div className="flex items-start gap-2.5 rounded-2xl border-2 border-amber-300 bg-amber-50 p-4 text-xs font-bold text-amber-950">
                       <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-amber-700" />
-                      <div>
-                        <p className="font-extrabold">サーバー（Vercel）で解析中です</p>
-                        <p className="mt-0.5 text-[11px] text-amber-900">このまま他画面へ移動しても処理は継続され、完了すると自動反映されます。</p>
-                      </div>
+                      <span>サーバーで要約・タスク・フィードバックを生成中です...</span>
                     </div>
                   ) : (
                     <>
@@ -1704,11 +1943,8 @@ export function PublicPreviewShell() {
                         </h3>
                         <ul className="mt-2.5 space-y-2">
                           {selectedRec.summaryPoints.map((pt, i) => (
-                            <li key={i} className="flex items-start gap-2 rounded-xl bg-[#FBF9F4] px-3 py-2 text-xs font-bold leading-relaxed">
-                              <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#1C1A16] text-[10px] font-extrabold text-white">
-                                {i + 1}
-                              </span>
-                              <span>{pt}</span>
+                            <li key={i} className="rounded-xl bg-[#FBF9F4] px-3 py-2 text-xs font-bold">
+                              {i + 1}. {pt}
                             </li>
                           ))}
                         </ul>
@@ -1718,13 +1954,11 @@ export function PublicPreviewShell() {
                         <div className="flex items-center justify-between">
                           <h3 className="flex items-center gap-1.5 text-sm font-extrabold">
                             <ListChecks className="h-4 w-4 text-[#2563EB]" />
-                            <span>抽出タスク（やるべきこと）</span>
+                            <span>抽出タスク</span>
                           </h3>
-                          <span className="rounded-full bg-[#EFEAE0] px-2.5 py-0.5 text-[11px] font-extrabold tabular-nums text-[#474239]">
-                            {doneCount} / {selectedRec.tasks.length} 完了
-                          </span>
+                          <span className="text-[11px] font-extrabold">{doneCount} / {selectedRec.tasks.length} 完了</span>
                         </div>
-                        <div className="mt-2.5 space-y-2">
+                        <div className="mt-2 space-y-2">
                           {selectedRec.tasks.map((task) => (
                             <button
                               key={task.id}
@@ -1733,59 +1967,19 @@ export function PublicPreviewShell() {
                                 setPreviewRecordings((prev) =>
                                   prev.map((r) =>
                                     r.id === selectedRec.id
-                                      ? {
-                                          ...r,
-                                          tasks: r.tasks.map((t) =>
-                                            t.id === task.id ? { ...t, done: !t.done } : t
-                                          ),
-                                        }
+                                      ? { ...r, tasks: r.tasks.map((t) => (t.id === task.id ? { ...t, done: !t.done } : t)) }
                                       : r
                                   )
                                 );
                               }}
-                              className={`flex min-h-[42px] w-full items-start gap-2.5 rounded-xl border-2 px-3 py-2 text-left text-xs font-bold ${
-                                task.done
-                                  ? "border-emerald-300 bg-emerald-50 text-emerald-950 line-through opacity-75"
-                                  : "border-[#D5CEC0] bg-[#FBF9F4] text-[#1C1A16]"
+                              className={`flex min-h-[40px] w-full items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs font-bold ${
+                                task.done ? "border-emerald-300 bg-emerald-50 line-through" : "border-[#D5CEC0] bg-[#FBF9F4]"
                               }`}
                             >
-                              <CheckSquare className={`mt-0.5 h-4 w-4 shrink-0 ${task.done ? "text-emerald-600" : "text-[#8A8377]"}`} />
+                              <CheckSquare className="h-4 w-4 shrink-0" />
                               <span>{task.text}</span>
                             </button>
                           ))}
-                        </div>
-                      </section>
-
-                      <section className="space-y-2.5 rounded-2xl border-2 border-[#D5CEC0] bg-white p-4">
-                        <h3 className="text-sm font-extrabold">AI営業フィードバック</h3>
-                        <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3">
-                          <p className="flex items-center gap-1.5 text-xs font-extrabold text-emerald-900">
-                            <ThumbsUp className="h-3.5 w-3.5" />
-                            <span>良かった点</span>
-                          </p>
-                          <ul className="mt-1 space-y-1 text-xs font-bold text-emerald-950">
-                            {selectedRec.feedback.goodPoints.map((g, i) => (
-                              <li key={i}>・{g}</li>
-                            ))}
-                          </ul>
-                        </div>
-                        <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3">
-                          <p className="flex items-center gap-1.5 text-xs font-extrabold text-amber-900">
-                            <Lightbulb className="h-3.5 w-3.5" />
-                            <span>改善のポイント</span>
-                          </p>
-                          <ul className="mt-1 space-y-1 text-xs font-bold text-amber-950">
-                            {selectedRec.feedback.improvements.map((imp, i) => (
-                              <li key={i}>・{imp}</li>
-                            ))}
-                          </ul>
-                        </div>
-                        <div className="rounded-xl border border-[#D94E2B]/30 bg-[#FFF5F2] p-3">
-                          <p className="flex items-center gap-1.5 text-xs font-extrabold text-[#9A3412]">
-                            <ArrowRight className="h-3.5 w-3.5" />
-                            <span>次回への提案</span>
-                          </p>
-                          <p className="mt-1 text-xs font-bold text-[#1C1A16]">{selectedRec.feedback.nextAdvice}</p>
                         </div>
                       </section>
                     </>
@@ -1794,184 +1988,94 @@ export function PublicPreviewShell() {
               );
             }
 
+            const filteredRecs = previewOutcomeFilter === "すべて"
+              ? previewRecordings
+              : previewRecordings.filter((r) => r.outcome === previewOutcomeFilter);
+
             return (
               <div className="gurupo-screen-enter space-y-4">
                 <div className="flex items-center justify-between">
                   <h1 className="text-xl font-extrabold">取材</h1>
                   <span className="rounded-full bg-[#EFEAE0] px-2.5 py-1 text-[11px] font-extrabold text-[#474239]">
-                    {previewRecordings.length}件
+                    予定 {apptList.length}件
                   </span>
                 </div>
 
-                <section className="rounded-2xl border-2 border-[#D94E2B] bg-[#FFF5F2] p-3.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-1.5 text-xs font-extrabold text-[#9A3412]">
-                      <CalendarClock className="h-4 w-4 text-[#D94E2B]" />
-                      <span>次のアポ（最優先）</span>
-                    </span>
-                    <span className="rounded-lg bg-[#D94E2B] px-2 py-0.5 text-xs font-extrabold tabular-nums text-white">
-                      {nextAppt.time}
-                    </span>
-                  </div>
-                  <p className="mt-1.5 text-sm font-extrabold text-[#1C1A16]">{nextAppt.name}</p>
-                  <p className="mt-0.5 text-[11px] font-bold text-[#575249]">{nextAppt.address}</p>
-                </section>
-
-                <section className="space-y-3 rounded-2xl border-2 border-[#1C1A16] bg-white p-4">
-                  <div>
-                    <p className="text-xs font-extrabold text-[#474239]">紐づける店舗（本日のアポ）</p>
-                    <select
-                      value={selectedRecStore}
-                      onChange={(e) => setSelectedRecStore(e.target.value)}
-                      disabled={isPreviewRecording}
-                      className="mt-1 min-h-[42px] w-full rounded-xl border-2 border-[#D5CEC0] bg-[#FBF9F4] px-3 text-sm font-bold"
-                    >
-                      <option value="">店舗を選択しない</option>
-                      {todayApptOptions.map((ap) => (
-                        <option key={ap.id} value={ap.name}>
-                          {ap.time} {ap.name}{ap.name === nextAppt.name ? "（次のアポ）" : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <p className="text-xs font-extrabold text-[#474239]">タイトル（任意・未入力時は店舗名から自動設定）</p>
-                    <input
-                      type="text"
-                      value={recTitleInput}
-                      onChange={(e) => setRecTitleInput(e.target.value)}
-                      disabled={isPreviewRecording}
-                      placeholder={selectedRecStore ? `例：${selectedRecStore} 初回取材` : "例：サンプル居酒屋C 初回取材"}
-                      className="mt-1 min-h-[42px] w-full rounded-xl border-2 border-[#D5CEC0] bg-[#FBF9F4] px-3 text-sm font-bold"
-                    />
-                  </div>
-                  <div className="flex items-center justify-between rounded-2xl border-2 border-[#D5CEC0] bg-[#FBF9F4] px-4 py-3">
-                    <div>
-                      <p className="text-xs font-bold text-[#575249]">
-                        {isPreviewRecording ? "録音中（プレビュー）" : "ボタンを押して録音を開始"}
-                      </p>
-                      <p className="mt-0.5 text-2xl font-extrabold tabular-nums">{fmtSec(previewRecSec)}</p>
-                    </div>
-                    {!isPreviewRecording ? (
+                <section className="space-y-2.5 rounded-2xl border-2 border-[#1C1A16] bg-white p-4">
+                  <p className="flex items-center gap-1.5 text-sm font-extrabold">
+                    <CalendarClock className="h-4 w-4 text-[#D94E2B]" />
+                    <span>取材を選択（日時が早い順）</span>
+                  </p>
+                  <div className="space-y-2">
+                    {apptList.map((ap, idx) => (
                       <button
+                        key={ap.id}
                         type="button"
-                        onClick={() => {
-                          setPreviewRecSec(0);
-                          setIsPreviewRecording(true);
-                        }}
-                        className="flex min-h-[46px] items-center gap-2 rounded-2xl bg-[#D94E2B] px-4 text-sm font-extrabold text-white"
+                        onClick={() => setPreviewChosenStoreId(ap.id)}
+                        className={`w-full rounded-xl border-2 p-3 text-left ${
+                          previewChosenStoreId === ap.id ? "border-[#D94E2B] bg-[#FFF5F2]" : "border-[#D5CEC0] bg-[#FBF9F4]"
+                        }`}
                       >
-                        <Mic className="h-4 w-4" />
-                        <span>録音開始</span>
+                        <div className="flex items-center gap-1.5">
+                          {idx === 0 && (
+                            <span className="rounded bg-[#D94E2B] px-1.5 py-0.5 text-[10px] font-extrabold text-white">最優先</span>
+                          )}
+                          <span className="text-xs font-extrabold">{ap.date} {ap.time}</span>
+                        </div>
+                        <p className="mt-1 text-sm font-extrabold">{ap.name}</p>
                       </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsPreviewRecording(false);
-                          const newId = "rec-" + Date.now();
-                          const storeLabel = selectedRecStore;
-                          const newRec = {
-                            id: newId,
-                            title: recTitleInput.trim() || (storeLabel ? `${storeLabel} 取材` : "新規取材録音（プレビュー）"),
-                            storeName: storeLabel,
-                            ownerName: "佐藤 健太",
-                            recordedAt: "たった今",
-                            durationSec: Math.max(3, previewRecSec),
-                            status: "processing",
-                            summaryPoints: [] as string[],
-                            tasks: [] as { id: string; text: string; done: boolean }[],
-                            feedback: {
-                              goodPoints: ["相手の課題に合わせて事例を分かりやすく説明できていました。"],
-                              improvements: ["導入後の運用イメージを具体例で添えるとさらに説得力が増します。"],
-                              nextAdvice: "次回は撮影日の候補を2つ用意して提案しましょう。",
-                            },
-                          };
-                          setPreviewRecordings((prev) => [newRec, ...prev]);
-                          setRecTitleInput("");
-                          setPreviewRecSec(0);
-                          notify("アップロード完了！裏側でAI解析中です（他の操作ができます）");
-                          setTimeout(() => {
-                            setPreviewRecordings((prev) =>
-                              prev.map((r) =>
-                                r.id === newId
-                                  ? {
-                                      ...r,
-                                      status: "completed",
-                                      summaryPoints: [
-                                        "お店の看板メニューとターゲット客層についてヒアリングを実施",
-                                        "写真撮影サポートと掲載手順について前向きな反応を得た",
-                                        "来週中に導入可否の最終確認を行う流れとなった",
-                                      ],
-                                      tasks: [
-                                        { id: "nt-1", text: "導入事例と料金プランをメール送付する", done: false },
-                                        { id: "nt-2", text: "来週水曜にフォロー架電する", done: false },
-                                      ],
-                                    }
-                                  : r
-                              )
-                            );
-                            notify("AI解析が完了し、一覧へ自動反映されました");
-                          }, 2500);
-                        }}
-                        className="flex min-h-[46px] items-center gap-2 rounded-2xl bg-[#1C1A16] px-4 text-sm font-extrabold text-white"
-                      >
-                        <Square className="h-4 w-4 fill-current text-red-400" />
-                        <span>停止して保存</span>
-                      </button>
-                    )}
+                    ))}
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPreviewStep(1);
+                      setPreviewLastRecId(null);
+                      setPreviewInterviewActive(true);
+                    }}
+                    className="flex min-h-[46px] w-full items-center justify-center gap-1.5 rounded-2xl bg-[#D94E2B] text-sm font-extrabold text-white"
+                  >
+                    <Play className="h-4 w-4 fill-current" />
+                    <span>「{chosenAppt.name}」の取材開始</span>
+                  </button>
                 </section>
 
                 <div className="space-y-2.5">
-                  <p className="text-sm font-extrabold">録音一覧（リアルタイム更新）</p>
-                  {previewRecordings.map((rec) => {
-                    const doneCount = rec.tasks.filter((t) => t.done).length;
-                    return (
+                  <p className="text-sm font-extrabold">取材一覧（日程別）</p>
+                  <div className="flex gap-1.5 overflow-x-auto pb-1">
+                    {(["すべて", "掲載のみ", "再対応", "契約済み"] as const).map((tab) => (
                       <button
-                        key={rec.id}
+                        key={tab}
                         type="button"
-                        onClick={() => setSelectedRecId(rec.id)}
-                        className="w-full rounded-2xl border-2 border-[#D5CEC0] bg-white p-3.5 text-left"
+                        onClick={() => setPreviewOutcomeFilter(tab)}
+                        className={`min-h-[32px] shrink-0 rounded-full border-2 px-3 text-xs font-extrabold ${
+                          previewOutcomeFilter === tab ? "border-[#1C1A16] bg-[#1C1A16] text-white" : "border-[#D5CEC0] bg-white"
+                        }`}
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-sm font-extrabold">{rec.title}</p>
-                          <div className="flex shrink-0 items-center gap-1.5">
-                            {rec.status === "processing" && (
-                              <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-extrabold text-amber-900">
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                                <span>処理中</span>
-                              </span>
-                            )}
-                            <span className="rounded-lg bg-[#EFEAE0] px-2 py-0.5 text-[11px] font-extrabold tabular-nums">
-                              {fmtSec(rec.durationSec)}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-bold text-[#575249]">
-                          <span>{rec.recordedAt}</span>
-                          <span>・担当：{rec.ownerName}</span>
-                          {rec.storeName && (
-                            <span className="rounded bg-[#FFF5F2] px-1.5 py-0.5 text-[10px] font-extrabold text-[#B93818]">
-                              {rec.storeName}
-                            </span>
-                          )}
-                          {rec.tasks.length > 0 && (
-                            <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-extrabold text-blue-950">
-                              タスク {doneCount}/{rec.tasks.length}
-                            </span>
-                          )}
-                        </div>
-                        {rec.status === "processing" ? (
-                          <p className="mt-2 text-xs font-bold text-amber-800">サーバーで要約・タスク・フィードバックを生成中です...</p>
-                        ) : (
-                          rec.summaryPoints[0] && (
-                            <p className="mt-2 line-clamp-2 text-xs text-[#474239]">{rec.summaryPoints[0]}</p>
-                          )
-                        )}
+                        {tab}
                       </button>
-                    );
-                  })}
+                    ))}
+                  </div>
+                  {filteredRecs.map((rec) => (
+                    <button
+                      key={rec.id}
+                      type="button"
+                      onClick={() => setSelectedRecId(rec.id)}
+                      className="w-full rounded-2xl border-2 border-[#D5CEC0] bg-white p-3.5 text-left"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-extrabold">{rec.title}</p>
+                        {rec.outcome && (
+                          <span className="rounded-full bg-[#EFEAE0] px-2 py-0.5 text-[10px] font-extrabold">
+                            {rec.outcome}
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-[11px] font-bold text-[#575249]">
+                        {rec.interviewDate} ・ {rec.recordedAt}
+                      </p>
+                    </button>
+                  ))}
                 </div>
               </div>
             );
